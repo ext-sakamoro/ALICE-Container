@@ -20,9 +20,12 @@ clone3 = ["std"]
 psi = ["std"]
 # All advanced features
 full = ["io_uring", "clone3", "psi"]
+# ALICE-Analytics container metrics
+analytics = ["dep:alice-analytics", "std"]
 
 [dependencies]
 libc = "0.2"
+alice-analytics = { path = "../ALICE-Analytics", optional = true, default-features = false, features = ["std"] }
 
 [dev-dependencies]
 criterion = "0.5"

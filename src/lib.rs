@@ -97,6 +97,9 @@ pub mod clone3;
 #[cfg(feature = "psi")]
 pub mod psi;
 
+#[cfg(feature = "analytics")]
+pub mod analytics_bridge;
+
 /// Prelude for convenient imports
 pub mod prelude {
     pub use crate::cgroup::{CgroupController, CgroupError, CpuConfig, MemoryConfig, IoConfig};
