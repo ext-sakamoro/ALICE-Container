@@ -298,6 +298,41 @@ loop {
 }
 ```
 
+## Cross-Crate Bridges
+
+### ALICE-Analytics Bridge (feature: `analytics`)
+
+Container resource metrics with streaming telemetry.
+
+Enable: `alice-container = { features = ["analytics"] }`
+
+### ALICE-DB Bridge (feature: `db`)
+
+Container state persistence with model-based compression.
+
+- `ContainerRecord` — 40-byte binary serialization (container_id, timestamp, cpu, memory, I/O)
+- `ContainerDbSink` — Batch insert + time-range query
+
+Enable: `alice-container = { features = ["db"] }`
+
+### ALICE-Crypto Bridge (feature: `crypto`)
+
+Container secret management with XChaCha20-Poly1305 encryption.
+
+- `ContainerSecretStore` — Seal/open secrets per container
+- `derive_container_key()` — BLAKE3 KDF for per-container keys
+
+Enable: `alice-container = { features = ["crypto"] }`
+
+### ALICE-Sync Bridge (feature: `sync`)
+
+Container orchestration sync events for distributed coordination.
+
+- `ContainerSyncEvent` — 18-byte compact binary event encoding
+- `container_world_hash()` — FNV-1a world hash for desync detection
+
+Enable: `alice-container = { features = ["sync"] }`
+
 ## Modules
 
 ### `cgroup` - Direct Cgroup v2 Control
