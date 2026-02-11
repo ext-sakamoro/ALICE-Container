@@ -100,6 +100,15 @@ pub mod psi;
 #[cfg(feature = "analytics")]
 pub mod analytics_bridge;
 
+#[cfg(feature = "db")]
+pub mod db_bridge;
+
+#[cfg(feature = "crypto")]
+pub mod crypto_bridge;
+
+#[cfg(feature = "sync")]
+pub mod sync_bridge;
+
 /// Prelude for convenient imports
 pub mod prelude {
     pub use crate::cgroup::{CgroupController, CgroupError, CpuConfig, MemoryConfig, IoConfig};

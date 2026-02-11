@@ -22,10 +22,18 @@ psi = ["std"]
 full = ["io_uring", "clone3", "psi"]
 # ALICE-Analytics container metrics
 analytics = ["dep:alice-analytics", "std"]
+# ALICE-DB container state persistence
+db = ["dep:alice-db", "std"]
+# ALICE-Crypto container secret management
+crypto = ["dep:alice-crypto", "std"]
+# Container sync events
+sync = ["std"]
 
 [dependencies]
 libc = "0.2"
 alice-analytics = { path = "../ALICE-Analytics", optional = true, default-features = false, features = ["std"] }
+alice-db = { path = "../ALICE-DB", optional = true, default-features = false }
+alice-crypto = { path = "../ALICE-Crypto", optional = true, default-features = false, features = ["std"] }
 
 [dev-dependencies]
 criterion = "0.5"
