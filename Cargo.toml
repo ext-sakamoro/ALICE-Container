@@ -8,6 +8,7 @@ license = "AGPL-3.0"
 repository = "https://github.com/alice-project/alice-container"
 keywords = ["container", "cgroup", "namespace", "runtime", "isolation"]
 categories = ["os", "virtualization"]
+publish = false
 
 [features]
 default = ["std"]
