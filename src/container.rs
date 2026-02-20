@@ -362,6 +362,8 @@ impl Container {
         match result {
             Ok(0) => {
                 // Child process
+                // SAFETY: pause(2) is always safe to call; it blocks until a signal is received
+                // and has no preconditions on process state.
                 unsafe {
                     libc::pause();
                 }
@@ -378,6 +380,9 @@ impl Container {
         // For now, use a simple fork approach
         // In production, would use clone() with namespace flags
 
+        // SAFETY: No threads are running that would be silently killed by fork at this point
+        // (single-threaded init path); all file descriptors are valid. The child calls only
+        // async-signal-safe functions (pause, _exit) before exec.
         let pid = unsafe { libc::fork() };
 
         match pid {
@@ -385,6 +390,7 @@ impl Container {
             0 => {
                 // Child process - this would set up namespaces
                 // For testing, just sleep
+                // SAFETY: pause(2) is always safe to call; it blocks until a signal is received.
                 unsafe {
                     libc::pause();
                 }
@@ -478,6 +484,8 @@ impl Container {
 
         // Wait for init to exit
         if let Some(pid) = self.init_pid {
+            // SAFETY: pid is a valid child process ID obtained from fork/clone3; status is a
+            // local stack variable passed by mutable pointer as required by waitpid(2).
             unsafe {
                 let mut status: libc::c_int = 0;
                 libc::waitpid(pid as i32, &mut status, 0);

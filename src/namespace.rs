@@ -120,6 +120,8 @@ impl Namespaces {
     /// Unshare namespaces for current process (Linux only)
     #[cfg(target_os = "linux")]
     pub fn unshare(&self) -> Result<(), NamespaceError> {
+        // SAFETY: self.flags.bits() is a valid combination of CLONE_NEW* flags; unshare(2)
+        // validates the flags and returns -1 on error. No pointers are involved.
         let ret = unsafe { libc::unshare(self.flags.bits()) };
         if ret < 0 {
             Err(NamespaceError::from_errno())
@@ -141,6 +143,8 @@ impl Namespaces {
             return Err(NamespaceError::NotInNamespace("UTS"));
         }
 
+        // SAFETY: hostname.as_ptr() points to valid UTF-8 bytes for hostname.len() bytes;
+        // sethostname(2) only reads the buffer and does not retain the pointer after returning.
         let ret = unsafe {
             libc::sethostname(
                 hostname.as_ptr() as *const libc::c_char,
@@ -203,6 +207,8 @@ where
     const MAP_STACK: c_int = 0x20000;
 
     // Allocate stack for child
+    // SAFETY: MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK with fd=-1 and offset=0 is a standard
+    // anonymous stack allocation; the kernel returns MAP_FAILED on error which is checked below.
     let stack = libc::mmap(
         core::ptr::null_mut(),
         stack_size,
@@ -224,12 +230,18 @@ where
     let fn_ptr = Box::into_raw(boxed_fn);
 
     extern "C" fn child_wrapper<F: FnOnce() -> i32>(arg: *mut libc::c_void) -> libc::c_int {
+        // SAFETY: arg was created by Box::into_raw in the parent before clone(2); this is the
+        // child process and Box::from_raw reclaims ownership exactly once here.
         let boxed_fn = unsafe { Box::from_raw(arg as *mut F) };
         boxed_fn()
     }
 
     let clone_flags = flags.bits() | libc::SIGCHLD;
 
+    // SAFETY: child_wrapper is a valid extern "C" function pointer; stack_top is one byte past
+    // the end of the mmap region (stack grows downward); clone_flags is a valid combination of
+    // CLONE_NEW* flags OR'd with SIGCHLD; fn_ptr is a Box-leaked closure pointer passed as the
+    // arg to child_wrapper which reclaims it. The kernel validates all flags.
     let pid = libc::clone(
         child_wrapper::<F>,
         stack_top,
@@ -239,7 +251,11 @@ where
 
     if pid < 0 {
         // Clean up on error
+        // SAFETY: fn_ptr was created by Box::into_raw above; Box::from_raw reclaims ownership
+        // exactly once on this error path before the pointer is discarded.
         let _ = Box::from_raw(fn_ptr);
+        // SAFETY: stack and stack_size match the preceding successful mmap call; this is the
+        // only munmap for this mapping on the error path.
         libc::munmap(stack, stack_size);
         return Err(NamespaceError::from_errno());
     }
@@ -274,6 +290,9 @@ pub fn pivot_root(new_root: &Path, put_old: &Path) -> Result<(), NamespaceError>
     let put_old_c = CString::new(put_old.to_string_lossy().as_bytes())
         .map_err(|_| NamespaceError::InvalidPath)?;
 
+    // SAFETY: new_root_c and put_old_c are valid NUL-terminated CStrings; pivot_root(2) only
+    // reads the paths and does not retain the pointers after returning. The kernel validates
+    // path validity and returns -1 on error.
     let ret = unsafe {
         libc::syscall(
             libc::SYS_pivot_root,
@@ -303,6 +322,8 @@ pub fn umount(target: &Path) -> Result<(), NamespaceError> {
     let target_c = CString::new(target.to_string_lossy().as_bytes())
         .map_err(|_| NamespaceError::InvalidPath)?;
 
+    // SAFETY: target_c is a valid NUL-terminated CString; umount(2) only reads the path and
+    // does not retain the pointer after returning. The kernel validates the mount point.
     let ret = unsafe { libc::umount(target_c.as_ptr()) };
 
     if ret < 0 {
@@ -326,6 +347,8 @@ pub fn umount2(target: &Path, flags: c_int) -> Result<(), NamespaceError> {
     let target_c = CString::new(target.to_string_lossy().as_bytes())
         .map_err(|_| NamespaceError::InvalidPath)?;
 
+    // SAFETY: target_c is a valid NUL-terminated CString; flags is a valid umount2 flag
+    // (e.g. MNT_DETACH); umount2(2) does not retain the pointer after returning.
     let ret = unsafe { libc::umount2(target_c.as_ptr(), flags) };
 
     if ret < 0 {
@@ -371,6 +394,8 @@ impl NamespaceError {
     /// Create error from current errno (Linux)
     #[cfg(target_os = "linux")]
     fn from_errno() -> Self {
+        // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+        // thread-local and valid.
         let errno = unsafe { *libc::__errno_location() };
         match errno {
             libc::EPERM => NamespaceError::PermissionDenied,

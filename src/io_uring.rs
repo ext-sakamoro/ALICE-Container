@@ -182,6 +182,8 @@ pub struct IoUringSqe {
 
 impl Default for IoUringSqe {
     fn default() -> Self {
+        // SAFETY: IoUringSqe is #[repr(C)] composed of integers and padding; zeroed is a valid
+        // bit-pattern per the Linux ABI (all-zero SQE is a no-op).
         unsafe { MaybeUninit::zeroed().assume_init() }
     }
 }
@@ -376,6 +378,8 @@ impl IoUring {
             ..Default::default()
         };
 
+        // SAFETY: entries and params are valid; the kernel validates all fields and returns -1 on
+        // error. params is a local stack variable whose address remains valid for this call.
         let ring_fd = unsafe {
             libc::syscall(
                 syscall_nr::IO_URING_SETUP as libc::c_long,
@@ -385,6 +389,8 @@ impl IoUring {
         };
 
         if ring_fd < 0 {
+            // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+            // thread-local and valid.
             let errno = unsafe { *libc::__errno_location() };
             return Err(IoUringError::SetupFailed(errno));
         }
@@ -397,6 +403,9 @@ impl IoUring {
             + params.cq_entries as usize * core::mem::size_of::<IoUringCqe>();
 
         // Map SQ ring
+        // SAFETY: ring_fd is a valid io_uring file descriptor returned by IO_URING_SETUP;
+        // sq_ring_sz and offset 0 (IORING_OFF_SQ_RING) are from kernel-provided params.
+        // MAP_FAILED is checked immediately below.
         let sq_ring_ptr = unsafe {
             libc::mmap(
                 ptr::null_mut(),
@@ -409,11 +418,15 @@ impl IoUring {
         };
 
         if sq_ring_ptr == libc::MAP_FAILED as *mut u8 {
+            // SAFETY: ring_fd is a valid open file descriptor; close is safe here on error path.
             unsafe { libc::close(ring_fd) };
             return Err(IoUringError::SetupFailed(-1));
         }
 
         // Map SQEs
+        // SAFETY: ring_fd is a valid io_uring file descriptor; sqes_sz and offset
+        // 0x10000000 (IORING_OFF_SQES) are from kernel-provided params.
+        // MAP_FAILED is checked immediately below.
         let sqes_ptr = unsafe {
             libc::mmap(
                 ptr::null_mut(),
@@ -426,6 +439,8 @@ impl IoUring {
         };
 
         if sqes_ptr == libc::MAP_FAILED as *mut u8 {
+            // SAFETY: sq_ring_ptr and sq_ring_sz match the preceding successful mmap; this is the
+            // only munmap for that mapping. ring_fd is still open and valid.
             unsafe {
                 libc::munmap(sq_ring_ptr as *mut libc::c_void, sq_ring_sz);
                 libc::close(ring_fd);
@@ -434,6 +449,9 @@ impl IoUring {
         }
 
         // Map CQ ring (may overlap with SQ ring in newer kernels)
+        // SAFETY: ring_fd is a valid io_uring file descriptor; cq_ring_sz and offset
+        // 0x8000000 (IORING_OFF_CQ_RING) are from kernel-provided params.
+        // MAP_FAILED is checked immediately below.
         let cq_ring_ptr = unsafe {
             libc::mmap(
                 ptr::null_mut(),
@@ -446,6 +464,9 @@ impl IoUring {
         };
 
         if cq_ring_ptr == libc::MAP_FAILED as *mut u8 {
+            // SAFETY: sqes_ptr/sqes_sz and sq_ring_ptr/sq_ring_sz match their respective
+            // preceding successful mmap calls; these are the only munmaps for those mappings.
+            // ring_fd is still open and valid.
             unsafe {
                 libc::munmap(sqes_ptr as *mut libc::c_void, sqes_sz);
                 libc::munmap(sq_ring_ptr as *mut libc::c_void, sq_ring_sz);
@@ -457,11 +478,17 @@ impl IoUring {
         Ok(Self {
             ring_fd,
             sqes: sqes_ptr as *mut IoUringSqe,
+            // SAFETY: cq_ring_ptr is a valid mmap region; cq_off.cqes is a kernel-provided byte
+            // offset into that region that points to the start of the CQE array.
             cqes: unsafe { cq_ring_ptr.add(params.cq_off.cqes as usize) as *const IoUringCqe },
+            // SAFETY: sq_ring_ptr is a valid mmap region; all sq_off fields are kernel-provided
+            // byte offsets into that region for the respective ring-buffer control words.
             sq_head: unsafe { sq_ring_ptr.add(params.sq_off.head as usize) as *const u32 },
             sq_tail: unsafe { sq_ring_ptr.add(params.sq_off.tail as usize) as *mut u32 },
             sq_ring_mask: unsafe { *(sq_ring_ptr.add(params.sq_off.ring_mask as usize) as *const u32) },
             sq_array: unsafe { sq_ring_ptr.add(params.sq_off.array as usize) as *mut u32 },
+            // SAFETY: cq_ring_ptr is a valid mmap region; all cq_off fields are kernel-provided
+            // byte offsets into that region for the respective CQ ring-buffer control words.
             cq_head: unsafe { cq_ring_ptr.add(params.cq_off.head as usize) as *mut u32 },
             cq_tail: unsafe { cq_ring_ptr.add(params.cq_off.tail as usize) as *const u32 },
             cq_ring_mask: unsafe { *(cq_ring_ptr.add(params.cq_off.ring_mask as usize) as *const u32) },
@@ -477,6 +504,8 @@ impl IoUring {
 
     /// Get available SQ slots
     fn sq_space_left(&self) -> u32 {
+        // SAFETY: sq_head and sq_tail were initialized from valid mmap regions; volatile read
+        // provides acquire semantics for the shared ring buffer control words.
         let head = unsafe { ptr::read_volatile(self.sq_head) };
         let tail = unsafe { ptr::read_volatile(self.sq_tail) };
         self.entries - (tail.wrapping_sub(head))
@@ -488,9 +517,14 @@ impl IoUring {
             return Err(IoUringError::RingFull);
         }
 
+        // SAFETY: sq_tail was initialized from a valid mmap region; volatile read provides
+        // acquire semantics for the shared ring buffer tail control word.
         let tail = unsafe { ptr::read_volatile(self.sq_tail) };
         let index = tail & self.sq_ring_mask;
 
+        // SAFETY: sqes and sq_array were initialized from valid mmap-backed regions; index is
+        // masked by sq_ring_mask so it stays within bounds. sq_tail points into the same region.
+        // Volatile writes with a Release fence ensure visibility to the kernel poll thread.
         unsafe {
             // Write SQE
             ptr::write_volatile(self.sqes.add(index as usize), sqe);
@@ -507,6 +541,8 @@ impl IoUring {
 
     /// Submit queued SQEs and wait for completions
     pub fn submit_and_wait(&self, wait_nr: u32) -> Result<u32, IoUringError> {
+        // SAFETY: sq_head and sq_tail were initialized from valid mmap regions; volatile reads
+        // provide acquire semantics for the shared ring buffer control words.
         let head = unsafe { ptr::read_volatile(self.sq_head) };
         let tail = unsafe { ptr::read_volatile(self.sq_tail) };
         let to_submit = tail.wrapping_sub(head);
@@ -521,6 +557,8 @@ impl IoUring {
             0
         };
 
+        // SAFETY: ring_fd is a valid io_uring file descriptor; to_submit and wait_nr are within
+        // the ring's capacity; the kernel validates all parameters and returns -1 on error.
         let ret = unsafe {
             libc::syscall(
                 syscall_nr::IO_URING_ENTER as libc::c_long,
@@ -534,6 +572,8 @@ impl IoUring {
         };
 
         if ret < 0 {
+            // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+            // thread-local and valid.
             let errno = unsafe { *libc::__errno_location() };
             return Err(IoUringError::SubmitFailed(errno));
         }
@@ -551,6 +591,8 @@ impl IoUring {
         let mut completions = Vec::new();
 
         loop {
+            // SAFETY: cq_head and cq_tail were initialized from valid mmap regions; volatile
+            // reads provide acquire semantics for the shared CQ ring buffer control words.
             let head = unsafe { ptr::read_volatile(self.cq_head) };
             let tail = unsafe { ptr::read_volatile(self.cq_tail) };
 
@@ -562,10 +604,14 @@ impl IoUring {
             core::sync::atomic::fence(core::sync::atomic::Ordering::Acquire);
 
             let index = head & self.cq_ring_mask;
+            // SAFETY: cqes was initialized from a valid mmap-backed region; index is masked by
+            // cq_ring_mask so it stays within bounds. Volatile read provides acquire semantics.
             let cqe = unsafe { ptr::read_volatile(self.cqes.add(index as usize)) };
             completions.push(cqe);
 
             // Update head
+            // SAFETY: cq_head was initialized from a valid mmap region; volatile write with the
+            // preceding Acquire fence ensures the kernel sees the updated consumer pointer.
             unsafe {
                 ptr::write_volatile(self.cq_head, head.wrapping_add(1));
             }
@@ -583,6 +629,10 @@ impl IoUring {
 #[cfg(all(feature = "std", target_os = "linux"))]
 impl Drop for IoUring {
     fn drop(&mut self) {
+        // SAFETY: Each pointer and its corresponding size match a previous successful mmap call;
+        // these are the only munmap calls for their respective mappings. cq_ring_ptr is only
+        // unmapped separately when it differs from sq_ring_ptr (i.e., a distinct mapping).
+        // ring_fd is a valid open file descriptor that is closed exactly once here.
         unsafe {
             if self.cq_ring_ptr != self.sq_ring_ptr {
                 libc::munmap(self.cq_ring_ptr as *mut libc::c_void, self.cq_ring_sz);

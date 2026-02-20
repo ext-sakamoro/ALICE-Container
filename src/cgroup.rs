@@ -487,6 +487,8 @@ impl CgroupController {
         } else {
             // Fallback: send SIGKILL to all processes
             for pid in self.processes()? {
+                // SAFETY: pid is a valid process ID read from cgroup.procs which only contains
+                // live process IDs; SIGKILL is always deliverable and the signal number is valid.
                 unsafe {
                     libc::kill(pid as i32, libc::SIGKILL);
                 }

@@ -260,6 +260,9 @@ impl Clone3Error {
 /// - The child function is safe to execute in the new process context
 #[cfg(target_os = "linux")]
 pub unsafe fn clone3_raw(args: &Clone3Args) -> Result<u32, Clone3Error> {
+    // SAFETY: args is a valid &Clone3Args reference; Clone3Args::size() matches the kernel's
+    // struct clone_args layout (#[repr(C)]). The kernel validates all fields and returns -1 on
+    // error. Caller ensures stack/cgroup fields are valid per the doc-comment contract.
     let ret = libc::syscall(
         SYS_CLONE3 as libc::c_long,
         args as *const Clone3Args,
@@ -267,6 +270,8 @@ pub unsafe fn clone3_raw(args: &Clone3Args) -> Result<u32, Clone3Error> {
     );
 
     if ret < 0 {
+        // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+        // thread-local and valid.
         let errno = *libc::__errno_location();
         return Err(Clone3Error::from_errno(errno));
     }
@@ -295,6 +300,8 @@ where
     F: FnOnce() -> i32 + Send + 'static,
 {
     // Allocate stack
+    // SAFETY: MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK with fd=-1 and offset=0 is a standard
+    // anonymous stack allocation; the kernel returns MAP_FAILED on error which is checked below.
     let stack = libc::mmap(
         core::ptr::null_mut(),
         stack_size,
@@ -321,10 +328,14 @@ where
     clone_args.stack_size = stack_size as u64;
 
     // Store function pointer at top of stack
+    // SAFETY: stack_top is the byte past the end of the mmap region; subtracting size_of::<*mut F>()
+    // lands within the allocated region and is properly aligned for a pointer-sized write.
     let fn_storage = (stack_top as usize - mem::size_of::<*mut F>()) as *mut *mut F;
     *fn_storage = fn_ptr;
 
     // Use fork-like behavior for simplicity
+    // SAFETY: clone_args is a valid Clone3Args with a properly sized mmap stack; the kernel
+    // validates all fields and returns -1 on error. Clone3Args::size() matches the ABI size.
     let ret = libc::syscall(
         SYS_CLONE3 as libc::c_long,
         &clone_args as *const Clone3Args,
@@ -333,14 +344,23 @@ where
 
     if ret < 0 {
         // Clean up on parent error path
+        // SAFETY: fn_ptr was created by Box::into_raw above; Box::from_raw reclaims ownership
+        // exactly once on this error path before the pointer is discarded.
         let _ = Box::from_raw(fn_ptr);
+        // SAFETY: stack and stack_size match the preceding successful mmap call; this is the only
+        // munmap for this mapping on the error path.
         libc::munmap(stack, stack_size);
+        // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+        // thread-local and valid.
         let errno = *libc::__errno_location();
         return Err(Clone3Error::from_errno(errno));
     }
 
     if ret == 0 {
         // Child process
+        // SAFETY: fn_storage points into the mmap stack which is valid in the child; *fn_storage
+        // holds the raw pointer written by the parent before clone3. Box::from_raw reclaims
+        // ownership exactly once in the child process.
         let func = Box::from_raw(*fn_storage);
         let exit_code = func();
         libc::_exit(exit_code);
@@ -376,6 +396,8 @@ pub fn open_cgroup_fd(cgroup_path: &std::path::Path) -> Result<RawFd, Clone3Erro
     let path_c = CString::new(cgroup_path.as_os_str().as_bytes())
         .map_err(|_| Clone3Error::InvalidArgument)?;
 
+    // SAFETY: path_c is a valid NUL-terminated CString; O_RDONLY | O_DIRECTORY | O_CLOEXEC are
+    // valid flags; the kernel returns -1 on error which is checked immediately below.
     let fd = unsafe {
         libc::open(
             path_c.as_ptr(),
@@ -384,6 +406,8 @@ pub fn open_cgroup_fd(cgroup_path: &std::path::Path) -> Result<RawFd, Clone3Erro
     };
 
     if fd < 0 {
+        // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+        // thread-local and valid.
         let errno = unsafe { *libc::__errno_location() };
         return Err(Clone3Error::from_errno(errno));
     }
@@ -400,6 +424,8 @@ pub fn open_cgroup_fd(_cgroup_path: &std::path::Path) -> Result<RawFd, Clone3Err
 /// Close a cgroup fd
 #[cfg(target_os = "linux")]
 pub fn close_cgroup_fd(fd: RawFd) {
+    // SAFETY: fd is a valid file descriptor obtained from open_cgroup_fd or open; it is closed
+    // exactly once here after the caller is done using it for clone3.
     unsafe {
         libc::close(fd);
     }
@@ -463,6 +489,9 @@ where
 #[cfg(target_os = "linux")]
 pub fn is_clone3_available() -> bool {
     let args = Clone3Args::new();
+    // SAFETY: args is a default-initialized Clone3Args with all-zero fields; the kernel will
+    // reject it with EINVAL (not ENOSYS), which is how we detect availability. Clone3Args::size()
+    // matches the kernel ABI. No child process is spawned because the args are intentionally invalid.
     let ret = unsafe {
         libc::syscall(
             SYS_CLONE3 as libc::c_long,
@@ -473,6 +502,8 @@ pub fn is_clone3_available() -> bool {
 
     // ENOSYS means not available, any other error means it's available
     if ret < 0 {
+        // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+        // thread-local and valid.
         let errno = unsafe { *libc::__errno_location() };
         errno != libc::ENOSYS
     } else {

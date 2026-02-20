@@ -339,8 +339,12 @@ impl PsiMonitor {
         }
 
         // Create epoll instance
+        // SAFETY: EPOLL_CLOEXEC is a valid flag for epoll_create1(2); the kernel returns -1 on
+        // error which is checked immediately below.
         let epoll_fd = unsafe { libc::epoll_create1(libc::EPOLL_CLOEXEC) };
         if epoll_fd < 0 {
+            // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+            // thread-local and valid.
             let errno = unsafe { *libc::__errno_location() };
             return Err(PsiError::EpollError(errno));
         }
@@ -380,9 +384,13 @@ impl PsiMonitor {
             u64: self.triggers.len() as u64,
         };
 
+        // SAFETY: epoll_fd is a valid epoll instance created by epoll_create1; fd is an open
+        // PSI file descriptor; event is properly initialized with EPOLLPRI and a valid u64 tag.
         let ret = unsafe { libc::epoll_ctl(self.epoll_fd, libc::EPOLL_CTL_ADD, fd, &mut event) };
 
         if ret < 0 {
+            // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+            // thread-local and valid.
             let errno = unsafe { *libc::__errno_location() };
             return Err(PsiError::EpollError(errno));
         }
@@ -398,6 +406,8 @@ impl PsiMonitor {
 
         let mut events = [libc::epoll_event { events: 0, u64: 0 }; 16];
 
+        // SAFETY: epoll_fd is a valid epoll instance; events is a stack-allocated array with
+        // capacity for 16 epoll_event entries; events.len() correctly reflects that capacity.
         let nfds = unsafe {
             libc::epoll_wait(
                 self.epoll_fd,
@@ -408,6 +418,8 @@ impl PsiMonitor {
         };
 
         if nfds < 0 {
+            // SAFETY: Called on the same thread immediately after a failed syscall; errno is
+            // thread-local and valid.
             let errno = unsafe { *libc::__errno_location() };
             if errno == libc::EINTR {
                 return Ok(None);
@@ -475,6 +487,9 @@ impl Drop for PsiMonitor {
     fn drop(&mut self) {
         // Remove triggers from epoll
         for trigger in &self.triggers {
+            // SAFETY: epoll_fd is a valid epoll instance; trigger.fd is an open PSI file
+            // descriptor registered with this epoll; null_mut() is accepted by EPOLL_CTL_DEL
+            // (the event argument is ignored for deletion on Linux >= 2.6.9).
             unsafe {
                 libc::epoll_ctl(
                     self.epoll_fd,
@@ -485,6 +500,8 @@ impl Drop for PsiMonitor {
             }
         }
         // Close epoll fd
+        // SAFETY: epoll_fd is a valid file descriptor created by epoll_create1; it is closed
+        // exactly once here at drop time.
         unsafe {
             libc::close(self.epoll_fd);
         }
