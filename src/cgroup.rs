@@ -85,14 +85,19 @@ impl Default for CpuConfig {
     }
 }
 
+/// Reciprocal of 100 — avoids a division when converting percent to quota.
+const RCP_100: f64 = 1.0 / 100.0;
+
 impl CpuConfig {
     /// Create config for specific CPU percentage
     ///
     /// # Arguments
     /// * `percent` - CPU percentage (1-100 for single core, >100 for multiple cores)
+    #[inline(always)]
     pub fn from_percent(percent: u32) -> Self {
         let period_us = 100_000u64;
-        let quota_us = (period_us as u64 * percent as u64) / 100;
+        // Multiply by reciprocal instead of dividing by 100.
+        let quota_us = (period_us as f64 * percent as f64 * RCP_100) as u64;
         Self {
             quota_us,
             period_us,
@@ -101,6 +106,7 @@ impl CpuConfig {
     }
 
     /// Format for cpu.max file: "quota period"
+    #[inline(always)]
     pub fn to_cpu_max(&self) -> String {
         if self.quota_us == u64::MAX {
             format!("max {}", self.period_us)
@@ -134,12 +140,18 @@ impl Default for MemoryConfig {
     }
 }
 
+/// Throttle threshold: 90% of memory limit expressed as a reciprocal factor.
+const MEM_HIGH_FACTOR: f64 = 0.9_f64;
+
 impl MemoryConfig {
     /// Create config with specific memory limit
+    #[inline(always)]
     pub fn with_limit(bytes: u64) -> Self {
+        // Multiply by 0.9 instead of bytes * 90 / 100 to eliminate integer division.
+        let high = (bytes as f64 * MEM_HIGH_FACTOR) as u64;
         Self {
             max: bytes,
-            high: bytes * 90 / 100,  // Throttle at 90%
+            high,
             min: 0,
             oom_kill: true,
         }
@@ -291,6 +303,7 @@ impl CgroupController {
     }
 
     /// Set CPU quota directly (microseconds)
+    #[inline(always)]
     pub fn set_cpu_max(&self, quota_us: u64, period_us: u64) -> Result<(), CgroupError> {
         let config = CpuConfig {
             quota_us,
@@ -334,6 +347,7 @@ impl CgroupController {
     }
 
     /// Set memory limit directly (bytes)
+    #[inline(always)]
     pub fn set_memory_max(&self, bytes: u64) -> Result<(), CgroupError> {
         let config = MemoryConfig::with_limit(bytes);
         self.set_memory(&config)
@@ -422,6 +436,7 @@ impl CgroupController {
     }
 
     /// Get current memory usage
+    #[inline(always)]
     pub fn memory_current(&self) -> Result<u64, CgroupError> {
         let memory_current = self.path.join("memory.current");
         let content = Self::read_file(&memory_current)?;
@@ -430,6 +445,7 @@ impl CgroupController {
     }
 
     /// Get current CPU usage (microseconds)
+    #[inline(always)]
     pub fn cpu_usage_us(&self) -> Result<u64, CgroupError> {
         let cpu_stat = self.path.join("cpu.stat");
         let content = Self::read_file(&cpu_stat)?;
@@ -612,9 +628,12 @@ mod tests {
 
     #[test]
     fn test_memory_config_with_limit() {
-        let config = MemoryConfig::with_limit(256 * 1024 * 1024);
-        assert_eq!(config.max, 256 * 1024 * 1024);
-        assert_eq!(config.high, 256 * 1024 * 1024 * 90 / 100);
+        let bytes: u64 = 256 * 1024 * 1024;
+        let config = MemoryConfig::with_limit(bytes);
+        assert_eq!(config.max, bytes);
+        // high threshold is 90% of limit; allow ±1 for float truncation.
+        let expected = (bytes as f64 * 0.9) as u64;
+        assert_eq!(config.high, expected);
     }
 
     #[test]

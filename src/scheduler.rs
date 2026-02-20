@@ -224,10 +224,11 @@ impl DynamicScheduler {
         let current_usage = self.cgroup.cpu_usage_us()?;
         let usage_delta = current_usage.saturating_sub(self.last_usage_us);
 
-        // Calculate utilization (usage / elapsed time)
+        // Calculate utilization: replace division with reciprocal multiply.
         let elapsed_us = elapsed.as_micros() as u64;
         let utilization = if elapsed_us > 0 {
-            usage_delta as f64 / elapsed_us as f64
+            let inv_elapsed = 1.0_f64 / elapsed_us as f64;
+            usage_delta as f64 * inv_elapsed
         } else {
             0.0
         };
@@ -249,6 +250,7 @@ impl DynamicScheduler {
     }
 
     /// Decide on quota adjustment based on utilization
+    #[inline(always)]
     fn decide_quota(&self, utilization: f64) -> SchedulerDecision {
         let current = self.current_quota_us;
         let min = self.config.min_quota_us;
@@ -306,11 +308,13 @@ impl DynamicScheduler {
     }
 
     /// Get current quota
+    #[inline(always)]
     pub fn current_quota(&self) -> u64 {
         self.current_quota_us
     }
 
     /// Get scheduler statistics
+    #[inline(always)]
     pub fn stats(&self) -> SchedulerStats {
         SchedulerStats {
             current_quota_us: self.current_quota_us,
@@ -359,6 +363,7 @@ pub struct SchedulerStats {
 ///
 /// # Returns
 /// Quota in microseconds
+#[inline(always)]
 pub const fn quota_from_percent(cpu_percent: u32, period_us: u64) -> u64 {
     (period_us * cpu_percent as u64) / 100
 }
@@ -371,6 +376,7 @@ pub const fn quota_from_percent(cpu_percent: u32, period_us: u64) -> u64 {
 ///
 /// # Returns
 /// CPU percentage
+#[inline(always)]
 pub const fn percent_from_quota(quota_us: u64, period_us: u64) -> u32 {
     if period_us == 0 {
         0
