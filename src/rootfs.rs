@@ -416,14 +416,35 @@ pub fn mount(
 ) -> Result<(), RootFsError> {
     use std::ffi::CString;
 
-    let source_c = source.map(|s| {
-        CString::new(s.to_string_lossy().as_bytes()).unwrap()
-    });
+    // Convert every path/string argument to a NUL-terminated CString, propagating errors
+    // for arguments that could contain interior NUL bytes (paths from user input).
+    // filesystem type and mount data strings are caller-controlled &str values that
+    // originate from compile-time literals in this module, so unwrap() is safe there.
+    let source_c = source
+        .map(|s| {
+            CString::new(s.to_string_lossy().as_bytes())
+                .map_err(|_| RootFsError::IoError("Invalid source path".into()))
+        })
+        .transpose()?;
     let target_c = CString::new(target.to_string_lossy().as_bytes())
-        .map_err(|_| RootFsError::IoError("Invalid path".into()))?;
-    let fstype_c = fstype.map(|t| CString::new(t).unwrap());
-    let data_c = data.map(|d| CString::new(d).unwrap());
+        .map_err(|_| RootFsError::IoError("Invalid target path".into()))?;
+    let fstype_c = fstype
+        .map(|t| {
+            CString::new(t)
+                .map_err(|_| RootFsError::IoError("Invalid filesystem type".into()))
+        })
+        .transpose()?;
+    let data_c = data
+        .map(|d| {
+            CString::new(d)
+                .map_err(|_| RootFsError::IoError("Invalid mount data".into()))
+        })
+        .transpose()?;
 
+    // SAFETY: All pointer arguments are either null (for optional parameters) or point to
+    // valid NUL-terminated CString buffers that remain live for the duration of this call.
+    // mount(2) only reads the strings and does not retain pointers after returning.
+    // The kernel validates all flags and returns -1 on error.
     let ret = unsafe {
         libc::mount(
             source_c.as_ref().map_or(core::ptr::null(), |s| s.as_ptr()),
@@ -535,6 +556,10 @@ fn create_device_node(
         .map_err(|_| RootFsError::IoError("Invalid path".into()))?;
 
     let dev = libc::makedev(major, minor);
+    // SAFETY: path_c is a valid NUL-terminated CString for the device node path;
+    // S_IFCHR | mode is a valid file-type + permission combination; dev is constructed
+    // by makedev(3) from caller-supplied major/minor numbers. mknod(2) does not retain
+    // the path pointer after returning, and the kernel validates all arguments.
     let ret = unsafe {
         libc::mknod(
             path_c.as_ptr(),

@@ -19,6 +19,36 @@
 //! | Running | Init process active |
 //! | Paused | All processes frozen |
 //! | Stopped | All processes terminated |
+//!
+//! ## Fork Safety
+//!
+//! `Container::start()` (legacy path via `spawn_init`) calls `fork(2)` internally.
+//! **Fork in a multi-threaded process is inherently unsafe**: only the calling thread
+//! is cloned into the child, while all other threads are silently killed.  Any mutexes
+//! or condition variables held by those threads at the moment of the fork will remain
+//! permanently locked in the child, causing deadlocks if the child (or any `atfork`
+//! handler) tries to acquire them.
+//!
+//! ### Requirements for safe use of `start()`
+//!
+//! 1. **Call `start()` before spawning application threads.**  The container runtime
+//!    should be initialised in a single-threaded phase of the program.  After `start()`
+//!    returns the parent is still the single container-manager thread; only the child
+//!    process (the container init) is new.
+//!
+//! 2. **Register `pthread_atfork` handlers if threads already exist.**  If the calling
+//!    process is already multi-threaded, all lock-holding code paths must be quiesced
+//!    before `fork(2)` via `pthread_atfork(prepare, parent, child)` handlers.
+//!
+//! 3. **Child process must only call async-signal-safe functions.**  After `fork(2)`
+//!    the child in `spawn_init` calls only `libc::pause()` and `std::process::exit(0)`,
+//!    both of which are async-signal-safe, so no additional precautions are needed for
+//!    the current implementation.
+//!
+//! 4. **Prefer `clone3` + `CLONE_INTO_CGROUP`.**  The preferred path (`spawn_init_clone3`,
+//!    enabled by the `clone3` feature on Linux 5.7+) avoids `fork(2)` entirely and is
+//!    safe in multi-threaded programs.  Enable the `clone3` Cargo feature whenever
+//!    possible.
 
 use core::fmt;
 

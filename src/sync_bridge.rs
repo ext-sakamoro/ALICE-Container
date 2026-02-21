@@ -62,7 +62,12 @@ pub fn decode_container_event(event: &ContainerSyncEvent) -> Result<ContainerSta
         return Err("Checksum mismatch");
     }
 
-    let container_id = u64::from_le_bytes(data[0..8].try_into().unwrap());
+    // The slice ranges below are statically sized to match the target integer type, so
+    // try_into() is guaranteed to succeed on a [u8; 18] buffer that passed checksum
+    // validation above. We use expect() to document the invariant explicitly.
+    let container_id = u64::from_le_bytes(
+        data[0..8].try_into().expect("slice is exactly 8 bytes"),
+    );
     let status = match data[8] {
         0 => ContainerStatus::Created,
         1 => ContainerStatus::Running,
@@ -71,8 +76,12 @@ pub fn decode_container_event(event: &ContainerSyncEvent) -> Result<ContainerSta
         4 => ContainerStatus::Failed,
         _ => return Err("Invalid status"),
     };
-    let cpu_limit_us = u32::from_le_bytes(data[9..13].try_into().unwrap()) as u64;
-    let memory_limit = (u32::from_le_bytes(data[13..17].try_into().unwrap()) as u64) << 20;
+    let cpu_limit_us = u32::from_le_bytes(
+        data[9..13].try_into().expect("slice is exactly 4 bytes"),
+    ) as u64;
+    let memory_limit = (u32::from_le_bytes(
+        data[13..17].try_into().expect("slice is exactly 4 bytes"),
+    ) as u64) << 20;
 
     Ok(ContainerState {
         container_id,
