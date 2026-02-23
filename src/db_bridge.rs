@@ -17,7 +17,11 @@ impl core::fmt::Display for DbBridgeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             DbBridgeError::InvalidBufferLength { expected, got } => {
-                write!(f, "invalid buffer length: expected {} bytes, got {}", expected, got)
+                write!(
+                    f,
+                    "invalid buffer length: expected {} bytes, got {}",
+                    expected, got
+                )
             }
         }
     }
@@ -81,10 +85,12 @@ impl ContainerRecord {
     ///
     /// Returns `Err(DbBridgeError::InvalidBufferLength)` if `buf` is not exactly 40 bytes.
     pub fn try_from_slice(buf: &[u8]) -> Result<Self, DbBridgeError> {
-        let arr: &[u8; 40] = buf.try_into().map_err(|_| DbBridgeError::InvalidBufferLength {
-            expected: 40,
-            got: buf.len(),
-        })?;
+        let arr: &[u8; 40] = buf
+            .try_into()
+            .map_err(|_| DbBridgeError::InvalidBufferLength {
+                expected: 40,
+                got: buf.len(),
+            })?;
         Self::from_bytes(arr)
     }
 }
@@ -97,7 +103,10 @@ pub struct ContainerDbSink {
 
 impl ContainerDbSink {
     pub fn new(db: AliceDB) -> Self {
-        Self { db, records_stored: 0 }
+        Self {
+            db,
+            records_stored: 0,
+        }
     }
 
     /// Store a single container resource record.
@@ -124,14 +133,17 @@ impl ContainerDbSink {
     /// Query records for a container in a time range.
     ///
     /// Silently skips any DB entries that do not deserialize correctly (e.g., corrupt data).
-    pub fn query_container(&self, container_id: u64, from_ms: u64, to_ms: u64) -> Vec<ContainerRecord> {
+    pub fn query_container(
+        &self,
+        container_id: u64,
+        from_ms: u64,
+        to_ms: u64,
+    ) -> Vec<ContainerRecord> {
         let start = Self::make_key(container_id, from_ms);
         let end = Self::make_key(container_id, to_ms);
         self.db
             .range(&start, &end)
-            .filter_map(|(_k, v)| {
-                ContainerRecord::try_from_slice(v).ok()
-            })
+            .filter_map(|(_k, v)| ContainerRecord::try_from_slice(v).ok())
             .collect()
     }
 
@@ -184,7 +196,8 @@ mod tests {
             io_write_bytes: 64,
         };
         let bytes = record.to_bytes();
-        let restored = ContainerRecord::try_from_slice(&bytes).expect("exact 40 bytes must succeed");
+        let restored =
+            ContainerRecord::try_from_slice(&bytes).expect("exact 40 bytes must succeed");
         assert_eq!(restored.container_id, 1);
     }
 }

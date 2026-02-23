@@ -55,14 +55,20 @@ impl NamespaceFlags {
 
     /// All namespaces (except user - requires special handling)
     pub const ALL: Self = Self(
-        Self::CLONE_NEWNS_VAL | Self::CLONE_NEWPID_VAL | Self::CLONE_NEWNET_VAL
-        | Self::CLONE_NEWUTS_VAL | Self::CLONE_NEWIPC_VAL | Self::CLONE_NEWCGROUP_VAL
+        Self::CLONE_NEWNS_VAL
+            | Self::CLONE_NEWPID_VAL
+            | Self::CLONE_NEWNET_VAL
+            | Self::CLONE_NEWUTS_VAL
+            | Self::CLONE_NEWIPC_VAL
+            | Self::CLONE_NEWCGROUP_VAL,
     );
 
     /// Container isolation (common set)
     pub const CONTAINER: Self = Self(
-        Self::CLONE_NEWNS_VAL | Self::CLONE_NEWPID_VAL
-        | Self::CLONE_NEWUTS_VAL | Self::CLONE_NEWIPC_VAL
+        Self::CLONE_NEWNS_VAL
+            | Self::CLONE_NEWPID_VAL
+            | Self::CLONE_NEWUTS_VAL
+            | Self::CLONE_NEWIPC_VAL,
     );
 
     #[inline]
@@ -145,12 +151,8 @@ impl Namespaces {
 
         // SAFETY: hostname.as_ptr() points to valid UTF-8 bytes for hostname.len() bytes;
         // sethostname(2) only reads the buffer and does not retain the pointer after returning.
-        let ret = unsafe {
-            libc::sethostname(
-                hostname.as_ptr() as *const libc::c_char,
-                hostname.len(),
-            )
-        };
+        let ret =
+            unsafe { libc::sethostname(hostname.as_ptr() as *const libc::c_char, hostname.len()) };
 
         if ret < 0 {
             Err(NamespaceError::from_errno())
@@ -195,6 +197,12 @@ impl CloneFlags {
 }
 
 /// Clone a new process with namespaces (Linux only)
+///
+/// # Safety
+///
+/// The caller must ensure that the stack memory is valid for the duration of
+/// the child process, `child_fn` is safe to execute in the cloned context, and
+/// all shared resources are properly synchronized between parent and child.
 #[cfg(target_os = "linux")]
 pub unsafe fn clone_with_namespaces<F>(
     flags: CloneFlags,
@@ -264,6 +272,11 @@ where
 }
 
 /// Clone with namespaces (non-Linux stub)
+///
+/// # Safety
+///
+/// The caller must ensure that `_child_fn` is safe to call in a cloned context
+/// and that all resources accessible by the child are properly synchronized.
 #[cfg(not(target_os = "linux"))]
 pub unsafe fn clone_with_namespaces<F>(
     _flags: CloneFlags,
@@ -466,7 +479,7 @@ impl IdMapping {
         }
     }
 
-    /// Format for /proc/<pid>/uid_map or gid_map
+    /// Format for `/proc/<pid>/uid_map` or `gid_map`
     pub fn to_map_string(&self) -> String {
         format!("{} {} {}", self.inner_id, self.outer_id, self.count)
     }

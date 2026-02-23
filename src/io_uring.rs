@@ -396,8 +396,8 @@ impl IoUring {
         }
 
         // Calculate mmap sizes
-        let sq_ring_sz = params.sq_off.array as usize
-            + params.sq_entries as usize * core::mem::size_of::<u32>();
+        let sq_ring_sz =
+            params.sq_off.array as usize + params.sq_entries as usize * core::mem::size_of::<u32>();
         let sqes_sz = params.sq_entries as usize * core::mem::size_of::<IoUringSqe>();
         let cq_ring_sz = params.cq_off.cqes as usize
             + params.cq_entries as usize * core::mem::size_of::<IoUringCqe>();
@@ -485,13 +485,17 @@ impl IoUring {
             // byte offsets into that region for the respective ring-buffer control words.
             sq_head: unsafe { sq_ring_ptr.add(params.sq_off.head as usize) as *const u32 },
             sq_tail: unsafe { sq_ring_ptr.add(params.sq_off.tail as usize) as *mut u32 },
-            sq_ring_mask: unsafe { *(sq_ring_ptr.add(params.sq_off.ring_mask as usize) as *const u32) },
+            sq_ring_mask: unsafe {
+                *(sq_ring_ptr.add(params.sq_off.ring_mask as usize) as *const u32)
+            },
             sq_array: unsafe { sq_ring_ptr.add(params.sq_off.array as usize) as *mut u32 },
             // SAFETY: cq_ring_ptr is a valid mmap region; all cq_off fields are kernel-provided
             // byte offsets into that region for the respective CQ ring-buffer control words.
             cq_head: unsafe { cq_ring_ptr.add(params.cq_off.head as usize) as *mut u32 },
             cq_tail: unsafe { cq_ring_ptr.add(params.cq_off.tail as usize) as *const u32 },
-            cq_ring_mask: unsafe { *(cq_ring_ptr.add(params.cq_off.ring_mask as usize) as *const u32) },
+            cq_ring_mask: unsafe {
+                *(cq_ring_ptr.add(params.cq_off.ring_mask as usize) as *const u32)
+            },
             entries: params.sq_entries,
             sq_ring_ptr,
             sq_ring_sz,
@@ -769,7 +773,8 @@ impl IoUringCgroup {
                 libc::O_WRONLY | libc::O_TRUNC,
                 0,
                 op.user_data | 0x1000_0000, // Mark as open
-            ).with_link();
+            )
+            .with_link();
 
             self.ring.queue_sqe(open_sqe)?;
 
@@ -871,7 +876,10 @@ mod tests {
     #[test]
     fn test_sqe_with_link() {
         let sqe = IoUringSqe::default().with_link();
-        assert_eq!(sqe.flags & sqe_flags::IOSQE_IO_LINK as u8, sqe_flags::IOSQE_IO_LINK as u8);
+        assert_eq!(
+            sqe.flags & sqe_flags::IOSQE_IO_LINK as u8,
+            sqe_flags::IOSQE_IO_LINK as u8
+        );
     }
 
     #[test]

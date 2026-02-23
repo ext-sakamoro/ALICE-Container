@@ -133,7 +133,19 @@ impl RootFs {
         fs::create_dir_all(&path)?;
 
         // Create essential directories
-        let dirs = ["bin", "lib", "lib64", "usr", "etc", "proc", "dev", "sys", "tmp", "root", ".old_root"];
+        let dirs = [
+            "bin",
+            "lib",
+            "lib64",
+            "usr",
+            "etc",
+            "proc",
+            "dev",
+            "sys",
+            "tmp",
+            "root",
+            ".old_root",
+        ];
         for dir in dirs {
             fs::create_dir_all(path.join(dir))?;
         }
@@ -153,7 +165,9 @@ impl RootFs {
         let path = path.into();
 
         if !path.exists() {
-            return Err(RootFsError::PathNotFound(path.to_string_lossy().to_string()));
+            return Err(RootFsError::PathNotFound(
+                path.to_string_lossy().to_string(),
+            ));
         }
 
         Ok(Self {
@@ -430,15 +444,11 @@ pub fn mount(
         .map_err(|_| RootFsError::IoError("Invalid target path".into()))?;
     let fstype_c = fstype
         .map(|t| {
-            CString::new(t)
-                .map_err(|_| RootFsError::IoError("Invalid filesystem type".into()))
+            CString::new(t).map_err(|_| RootFsError::IoError("Invalid filesystem type".into()))
         })
         .transpose()?;
     let data_c = data
-        .map(|d| {
-            CString::new(d)
-                .map_err(|_| RootFsError::IoError("Invalid mount data".into()))
-        })
+        .map(|d| CString::new(d).map_err(|_| RootFsError::IoError("Invalid mount data".into())))
         .transpose()?;
 
     // SAFETY: All pointer arguments are either null (for optional parameters) or point to
@@ -560,13 +570,7 @@ fn create_device_node(
     // S_IFCHR | mode is a valid file-type + permission combination; dev is constructed
     // by makedev(3) from caller-supplied major/minor numbers. mknod(2) does not retain
     // the path pointer after returning, and the kernel validates all arguments.
-    let ret = unsafe {
-        libc::mknod(
-            path_c.as_ptr(),
-            libc::S_IFCHR | mode as libc::mode_t,
-            dev,
-        )
-    };
+    let ret = unsafe { libc::mknod(path_c.as_ptr(), libc::S_IFCHR | mode as libc::mode_t, dev) };
 
     if ret < 0 {
         let errno = unsafe { *libc::__errno_location() };

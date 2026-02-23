@@ -16,7 +16,8 @@ fn main() {
     linux_demo();
 
     #[cfg(not(target_os = "linux"))]
-    println!("This example requires Linux with cgroup v2.\n\
+    println!(
+        "This example requires Linux with cgroup v2.\n\
               Showing API overview instead:\n\n\
               // Create cgroup\n\
               let cgroup = CgroupController::create(\"my-container\")?;\n\n\
@@ -33,7 +34,8 @@ fn main() {
               cgroup.freeze()?;\n\
               cgroup.unfreeze()?;\n\n\
               // Cleanup\n\
-              cgroup.destroy()?;");
+              cgroup.destroy()?;"
+    );
 }
 
 #[cfg(target_os = "linux")]

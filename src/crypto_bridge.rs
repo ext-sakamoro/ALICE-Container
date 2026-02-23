@@ -4,7 +4,7 @@
 //!
 //! Author: Moroya Sakamoto
 
-use alice_crypto::{seal, open, blake3_hash, Key, Hash};
+use alice_crypto::{blake3_hash, open, seal, Hash, Key};
 
 /// A sealed (encrypted) container secret
 #[derive(Debug, Clone)]
@@ -22,7 +22,10 @@ pub struct ContainerSecretStore {
 impl ContainerSecretStore {
     /// Create store with a container-specific encryption key
     pub fn new(key: Key) -> Self {
-        Self { key, sealed_secrets: Vec::new() }
+        Self {
+            key,
+            sealed_secrets: Vec::new(),
+        }
     }
 
     /// Derive a container-specific key from master key + container ID
@@ -41,7 +44,10 @@ impl ContainerSecretStore {
     pub fn seal_secret(&mut self, name: &str, value: &[u8]) -> Result<SealedSecret, String> {
         let name_hash = blake3_hash(name.as_bytes());
         let ciphertext = seal(&self.key, value).map_err(|e| format!("Seal error: {:?}", e))?;
-        let secret = SealedSecret { name_hash, ciphertext };
+        let secret = SealedSecret {
+            name_hash,
+            ciphertext,
+        };
         self.sealed_secrets.push(secret.clone());
         Ok(secret)
     }

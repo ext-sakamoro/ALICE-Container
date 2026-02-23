@@ -581,8 +581,10 @@ mod tests {
         assert!(clone_flags::CONTAINER > 0);
         assert_eq!(
             clone_flags::CONTAINER,
-            clone_flags::CLONE_NEWNS | clone_flags::CLONE_NEWPID
-            | clone_flags::CLONE_NEWUTS | clone_flags::CLONE_NEWIPC
+            clone_flags::CLONE_NEWNS
+                | clone_flags::CLONE_NEWPID
+                | clone_flags::CLONE_NEWUTS
+                | clone_flags::CLONE_NEWIPC
         );
     }
 }

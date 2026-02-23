@@ -82,10 +82,10 @@
 
 // Core modules
 pub mod cgroup;
-pub mod namespace;
-pub mod scheduler;
 pub mod container;
+pub mod namespace;
 pub mod rootfs;
+pub mod scheduler;
 
 // Advanced modules (feature-gated)
 #[cfg(feature = "io_uring")]
@@ -111,23 +111,25 @@ pub mod sync_bridge;
 
 /// Prelude for convenient imports
 pub mod prelude {
-    pub use crate::cgroup::{CgroupController, CgroupError, CpuConfig, MemoryConfig, IoConfig};
-    pub use crate::namespace::{Namespaces, NamespaceFlags, pivot_root};
+    pub use crate::cgroup::{CgroupController, CgroupError, CpuConfig, IoConfig, MemoryConfig};
+    pub use crate::container::{Container, ContainerConfig, ContainerError, ContainerState};
+    pub use crate::namespace::{pivot_root, NamespaceFlags, Namespaces};
+    pub use crate::rootfs::{mount_dev, mount_proc, RootFs};
     pub use crate::scheduler::{DynamicScheduler, SchedulerConfig};
-    pub use crate::container::{Container, ContainerConfig, ContainerState, ContainerError};
-    pub use crate::rootfs::{RootFs, mount_proc, mount_dev};
 
     // io_uring exports
     #[cfg(feature = "io_uring")]
-    pub use crate::io_uring::{IoUring, IoUringCgroup, IoUringError, IoUringSqe, IoUringCqe};
+    pub use crate::io_uring::{IoUring, IoUringCgroup, IoUringCqe, IoUringError, IoUringSqe};
 
     // clone3 exports
     #[cfg(feature = "clone3")]
-    pub use crate::clone3::{Clone3Args, Clone3Error, clone_flags, spawn_into_cgroup};
+    pub use crate::clone3::{clone_flags, spawn_into_cgroup, Clone3Args, Clone3Error};
 
     // PSI exports
     #[cfg(feature = "psi")]
-    pub use crate::psi::{PsiMonitor, PsiScheduler, PsiTrigger, PsiError, PsiEvent, PsiResource, PsiLevel};
+    pub use crate::psi::{
+        PsiError, PsiEvent, PsiLevel, PsiMonitor, PsiResource, PsiScheduler, PsiTrigger,
+    };
 }
 
 pub use prelude::*;

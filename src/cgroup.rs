@@ -78,8 +78,8 @@ pub struct CpuConfig {
 impl Default for CpuConfig {
     fn default() -> Self {
         Self {
-            quota_us: u64::MAX,  // Unlimited
-            period_us: 100_000,  // 100ms
+            quota_us: u64::MAX, // Unlimited
+            period_us: 100_000, // 100ms
             weight: 100,
         }
     }
@@ -132,9 +132,9 @@ pub struct MemoryConfig {
 impl Default for MemoryConfig {
     fn default() -> Self {
         Self {
-            max: u64::MAX,   // Unlimited
-            high: u64::MAX,  // No throttling
-            min: 0,          // No guarantee
+            max: u64::MAX,  // Unlimited
+            high: u64::MAX, // No throttling
+            min: 0,         // No guarantee
             oom_kill: true,
         }
     }
@@ -231,15 +231,13 @@ impl CgroupController {
 
         // Ensure ALICE cgroup root exists
         if !alice_root.exists() {
-            fs::create_dir_all(alice_root)
-                .map_err(|e| CgroupError::IoError(e.to_string()))?;
+            fs::create_dir_all(alice_root).map_err(|e| CgroupError::IoError(e.to_string()))?;
         }
 
         // Create container cgroup
         let path = alice_root.join(container_id);
         if !path.exists() {
-            fs::create_dir(&path)
-                .map_err(|e| CgroupError::IoError(e.to_string()))?;
+            fs::create_dir(&path).map_err(|e| CgroupError::IoError(e.to_string()))?;
         }
 
         // Enable controllers
@@ -275,13 +273,12 @@ impl CgroupController {
 
         if subtree_control.exists() {
             // Enable controllers: +cpu +memory +io
-            Self::write_file(&subtree_control, "+cpu +memory +io")
-                .or_else(|_| {
-                    // Try enabling one by one if combined fails
-                    Self::write_file(&subtree_control, "+cpu")?;
-                    Self::write_file(&subtree_control, "+memory")?;
-                    Self::write_file(&subtree_control, "+io")
-                })?;
+            Self::write_file(&subtree_control, "+cpu +memory +io").or_else(|_| {
+                // Try enabling one by one if combined fails
+                Self::write_file(&subtree_control, "+cpu")?;
+                Self::write_file(&subtree_control, "+memory")?;
+                Self::write_file(&subtree_control, "+io")
+            })?;
         }
 
         Ok(())
@@ -398,7 +395,8 @@ impl CgroupController {
                 }
 
                 // Use sync batch write (simpler, still batched)
-                batch.sync_batch_write()
+                batch
+                    .sync_batch_write()
                     .map_err(|e| CgroupError::IoError(e.to_string()))
             }
             Err(_) => {
@@ -440,7 +438,9 @@ impl CgroupController {
     pub fn memory_current(&self) -> Result<u64, CgroupError> {
         let memory_current = self.path.join("memory.current");
         let content = Self::read_file(&memory_current)?;
-        content.trim().parse::<u64>()
+        content
+            .trim()
+            .parse::<u64>()
             .map_err(|e| CgroupError::InvalidParameter(e.to_string()))
     }
 
@@ -454,7 +454,8 @@ impl CgroupController {
         for line in content.lines() {
             if line.starts_with("usage_usec") {
                 if let Some(val) = line.split_whitespace().nth(1) {
-                    return val.parse::<u64>()
+                    return val
+                        .parse::<u64>()
                         .map_err(|e| CgroupError::InvalidParameter(e.to_string()));
                 }
             }
@@ -531,8 +532,7 @@ impl CgroupController {
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         // Remove cgroup directory
-        fs::remove_dir(&self.path)
-            .map_err(|e| CgroupError::IoError(e.to_string()))?;
+        fs::remove_dir(&self.path).map_err(|e| CgroupError::IoError(e.to_string()))?;
 
         Ok(())
     }
@@ -577,14 +577,13 @@ impl CgroupController {
 
     // Helper: read from cgroup file
     fn read_file(path: &Path) -> Result<String, CgroupError> {
-        let mut file = File::open(path)
-            .map_err(|e| {
-                if e.kind() == std::io::ErrorKind::NotFound {
-                    CgroupError::NotFound(path.to_string_lossy().to_string())
-                } else {
-                    CgroupError::IoError(e.to_string())
-                }
-            })?;
+        let mut file = File::open(path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                CgroupError::NotFound(path.to_string_lossy().to_string())
+            } else {
+                CgroupError::IoError(e.to_string())
+            }
+        })?;
 
         let mut content = String::new();
         file.read_to_string(&mut content)

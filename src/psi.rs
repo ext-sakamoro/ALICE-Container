@@ -366,10 +366,7 @@ impl PsiMonitor {
         };
 
         // Open file for writing trigger and receiving notifications
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&path)?;
+        let mut file = OpenOptions::new().read(true).write(true).open(&path)?;
 
         // Write trigger configuration
         let trigger_str = trigger.to_trigger_string();
@@ -567,7 +564,8 @@ impl PsiScheduler {
     /// Start monitoring with default triggers
     pub fn start(&mut self) -> Result<(), PsiError> {
         // Add CPU pressure trigger: 50ms stall per 1 second window
-        self.monitor.add_trigger(PsiTrigger::cpu_some(50_000, 1_000_000))?;
+        self.monitor
+            .add_trigger(PsiTrigger::cpu_some(50_000, 1_000_000))?;
 
         // Write initial quota
         self.write_quota(self.current_quota_us)?;
@@ -689,10 +687,7 @@ pub fn is_psi_available() -> bool {
 #[cfg(all(feature = "std", target_os = "linux"))]
 pub fn is_psi_triggers_available() -> bool {
     // Try to write a trigger to /proc/pressure/cpu
-    if let Ok(mut file) = OpenOptions::new()
-        .write(true)
-        .open("/proc/pressure/cpu")
-    {
+    if let Ok(mut file) = OpenOptions::new().write(true).open("/proc/pressure/cpu") {
         // Try writing a trigger - this will fail gracefully on older kernels
         let result = file.write_all(b"some 500000 1000000");
         result.is_ok()

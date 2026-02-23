@@ -1,5 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use alice_container::prelude::*;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_container_config_build(c: &mut Criterion) {
     c.bench_function("container_config_build", |b| {

@@ -55,8 +55,8 @@ use core::fmt;
 #[cfg(feature = "std")]
 use std::path::{Path, PathBuf};
 
-use crate::cgroup::{CgroupController, CgroupError, CpuConfig, MemoryConfig, IoConfig};
-use crate::namespace::{NamespaceFlags, NamespaceError};
+use crate::cgroup::{CgroupController, CgroupError, CpuConfig, IoConfig, MemoryConfig};
+use crate::namespace::{NamespaceError, NamespaceFlags};
 
 // ============================================================================
 // Container State
@@ -122,7 +122,10 @@ impl Default for ContainerConfig {
             hostname: "container".to_string(),
             workdir: PathBuf::from("/"),
             env: vec![
-                ("PATH".to_string(), "/usr/local/bin:/usr/bin:/bin".to_string()),
+                (
+                    "PATH".to_string(),
+                    "/usr/local/bin:/usr/bin:/bin".to_string(),
+                ),
                 ("HOME".to_string(), "/root".to_string()),
             ],
             namespaces: NamespaceFlags::CONTAINER,
@@ -371,7 +374,7 @@ impl Container {
     /// new process directly into the cgroup during clone.
     #[cfg(all(feature = "clone3", target_os = "linux"))]
     fn spawn_init_clone3(&self) -> Result<u32, ContainerError> {
-        use crate::clone3::{Clone3Args, clone3_raw, open_cgroup_fd, close_cgroup_fd, clone_flags};
+        use crate::clone3::{clone3_raw, clone_flags, close_cgroup_fd, open_cgroup_fd, Clone3Args};
 
         // Open cgroup directory fd
         let cgroup_fd = open_cgroup_fd(self.cgroup.path())
@@ -433,7 +436,9 @@ impl Container {
     /// Spawn init process (non-Linux stub)
     #[cfg(not(target_os = "linux"))]
     fn spawn_init(&self) -> Result<u32, ContainerError> {
-        Err(ContainerError::ProcessError("Container runtime requires Linux".into()))
+        Err(ContainerError::ProcessError(
+            "Container runtime requires Linux".into(),
+        ))
     }
 
     /// Execute a command in the container
@@ -531,7 +536,9 @@ impl Container {
     /// Stop the container (non-Linux stub)
     #[cfg(not(target_os = "linux"))]
     pub fn stop(&mut self) -> Result<(), ContainerError> {
-        Err(ContainerError::ProcessError("Container runtime requires Linux".into()))
+        Err(ContainerError::ProcessError(
+            "Container runtime requires Linux".into(),
+        ))
     }
 
     /// Destroy the container
@@ -663,9 +670,7 @@ mod tests {
 
     #[test]
     fn test_container_config_with_network() {
-        let config = ContainerConfig::builder()
-            .with_network()
-            .build();
+        let config = ContainerConfig::builder().with_network().build();
 
         assert!(config.network);
         assert!(config.namespaces.contains(NamespaceFlags::NEWNET));

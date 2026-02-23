@@ -50,19 +50,31 @@ impl ContainerMetrics {
     }
 
     /// Estimated unique container count.
-    pub fn unique_count(&self) -> f64 { self.unique_containers.cardinality() }
+    pub fn unique_count(&self) -> f64 {
+        self.unique_containers.cardinality()
+    }
     /// P99 CPU usage.
-    pub fn p99_cpu(&self) -> f64 { self.cpu_usage.quantile(0.99) }
+    pub fn p99_cpu(&self) -> f64 {
+        self.cpu_usage.quantile(0.99)
+    }
     /// P50 CPU usage.
-    pub fn p50_cpu(&self) -> f64 { self.cpu_usage.quantile(0.50) }
+    pub fn p50_cpu(&self) -> f64 {
+        self.cpu_usage.quantile(0.50)
+    }
     /// P99 memory usage.
-    pub fn p99_memory(&self) -> f64 { self.memory_usage.quantile(0.99) }
+    pub fn p99_memory(&self) -> f64 {
+        self.memory_usage.quantile(0.99)
+    }
     /// Check if CPU usage is anomalous.
-    pub fn is_cpu_anomaly(&mut self, cpu_pct: f64) -> bool { self.cpu_anomaly.is_anomaly(cpu_pct) }
+    pub fn is_cpu_anomaly(&mut self, cpu_pct: f64) -> bool {
+        self.cpu_anomaly.is_anomaly(cpu_pct)
+    }
 }
 
 impl Default for ContainerMetrics {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(test)]
@@ -74,7 +86,11 @@ mod tests {
         let mut m = ContainerMetrics::new();
         for i in 0..50 {
             let id = format!("container-{}", i % 5);
-            m.record_sample(id.as_bytes(), 10.0 + i as f64, 1024.0 * 1024.0 * (50.0 + i as f64));
+            m.record_sample(
+                id.as_bytes(),
+                10.0 + i as f64,
+                1024.0 * 1024.0 * (50.0 + i as f64),
+            );
             m.record_start(id.as_bytes());
         }
         assert!(m.unique_count() >= 3.0);

@@ -64,14 +64,14 @@ pub struct SchedulerConfig {
 impl Default for SchedulerConfig {
     fn default() -> Self {
         Self {
-            target_latency_us: 1000,         // 1ms target latency
-            min_quota_us: 10_000,            // 10ms minimum (10% of period)
-            max_quota_us: 100_000,           // 100ms maximum (100% of period)
-            period_us: 100_000,              // 100ms period
-            tick_interval_ms: 10,            // 10ms tick
-            burst_multiplier: 1.5,           // 50% increase on throttle
-            throttle_multiplier: 0.8,        // 20% decrease on underutil
-            low_util_threshold: 0.5,         // Below 50% = underutilized
+            target_latency_us: 1000,  // 1ms target latency
+            min_quota_us: 10_000,     // 10ms minimum (10% of period)
+            max_quota_us: 100_000,    // 100ms maximum (100% of period)
+            period_us: 100_000,       // 100ms period
+            tick_interval_ms: 10,     // 10ms tick
+            burst_multiplier: 1.5,    // 50% increase on throttle
+            throttle_multiplier: 0.8, // 20% decrease on underutil
+            low_util_threshold: 0.5,  // Below 50% = underutilized
         }
     }
 }
@@ -80,11 +80,11 @@ impl SchedulerConfig {
     /// Create config for latency-sensitive workload
     pub fn low_latency() -> Self {
         Self {
-            target_latency_us: 100,          // 100us target
-            min_quota_us: 50_000,            // 50% minimum
-            max_quota_us: 100_000,           // 100% maximum
-            tick_interval_ms: 1,             // 1ms tick
-            burst_multiplier: 2.0,           // 2x burst
+            target_latency_us: 100, // 100us target
+            min_quota_us: 50_000,   // 50% minimum
+            max_quota_us: 100_000,  // 100% maximum
+            tick_interval_ms: 1,    // 1ms tick
+            burst_multiplier: 2.0,  // 2x burst
             ..Default::default()
         }
     }
@@ -92,11 +92,11 @@ impl SchedulerConfig {
     /// Create config for batch workload
     pub fn batch() -> Self {
         Self {
-            target_latency_us: 100_000,      // 100ms acceptable
-            min_quota_us: 10_000,            // 10% minimum
-            max_quota_us: 50_000,            // 50% maximum
-            tick_interval_ms: 100,           // 100ms tick
-            burst_multiplier: 1.2,           // 20% burst
+            target_latency_us: 100_000, // 100ms acceptable
+            min_quota_us: 10_000,       // 10% minimum
+            max_quota_us: 50_000,       // 50% maximum
+            tick_interval_ms: 100,      // 100ms tick
+            burst_multiplier: 1.2,      // 20% burst
             ..Default::default()
         }
     }
@@ -191,7 +191,8 @@ impl DynamicScheduler {
     /// Start scheduling with initial quota
     pub fn start(&mut self) -> Result<(), CgroupError> {
         // Set initial CPU quota
-        self.cgroup.set_cpu_max(self.current_quota_us, self.config.period_us)?;
+        self.cgroup
+            .set_cpu_max(self.current_quota_us, self.config.period_us)?;
         self.running = true;
         self.last_tick = Instant::now();
         Ok(())
@@ -238,7 +239,8 @@ impl DynamicScheduler {
 
         // Apply new quota if changed
         if let SchedulerDecision::Adjust { new_quota_us } = decision {
-            self.cgroup.set_cpu_max(new_quota_us, self.config.period_us)?;
+            self.cgroup
+                .set_cpu_max(new_quota_us, self.config.period_us)?;
             self.current_quota_us = new_quota_us;
         }
 
@@ -288,13 +290,15 @@ impl DynamicScheduler {
     /// Force burst mode (temporarily maximize quota)
     pub fn burst_mode(&mut self) -> Result<(), CgroupError> {
         self.current_quota_us = self.config.max_quota_us;
-        self.cgroup.set_cpu_max(self.current_quota_us, self.config.period_us)
+        self.cgroup
+            .set_cpu_max(self.current_quota_us, self.config.period_us)
     }
 
     /// Force throttle mode (minimize quota)
     pub fn throttle(&mut self) -> Result<(), CgroupError> {
         self.current_quota_us = self.config.min_quota_us;
-        self.cgroup.set_cpu_max(self.current_quota_us, self.config.period_us)
+        self.cgroup
+            .set_cpu_max(self.current_quota_us, self.config.period_us)
     }
 
     /// Set specific quota
@@ -479,8 +483,12 @@ throttled_usec 50000"#;
         assert_eq!(SchedulerDecision::Idle, SchedulerDecision::Idle);
         assert_eq!(SchedulerDecision::Maintain, SchedulerDecision::Maintain);
         assert_eq!(
-            SchedulerDecision::Adjust { new_quota_us: 50000 },
-            SchedulerDecision::Adjust { new_quota_us: 50000 }
+            SchedulerDecision::Adjust {
+                new_quota_us: 50000
+            },
+            SchedulerDecision::Adjust {
+                new_quota_us: 50000
+            }
         );
     }
 }
