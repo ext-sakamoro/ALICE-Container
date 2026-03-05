@@ -140,12 +140,13 @@ impl Default for ContainerConfig {
 
 impl ContainerConfig {
     /// Create a new configuration builder
+    #[must_use]
     pub fn builder() -> ContainerConfigBuilder {
         ContainerConfigBuilder::new()
     }
 }
 
-/// Builder for ContainerConfig
+/// Builder for `ContainerConfig`
 #[derive(Debug, Clone)]
 pub struct ContainerConfigBuilder {
     config: ContainerConfig,
@@ -153,6 +154,7 @@ pub struct ContainerConfigBuilder {
 
 impl ContainerConfigBuilder {
     /// Create a new builder with defaults
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: ContainerConfig::default(),
@@ -160,48 +162,56 @@ impl ContainerConfigBuilder {
     }
 
     /// Set root filesystem path
+    #[must_use]
     pub fn rootfs(mut self, path: impl Into<PathBuf>) -> Self {
         self.config.rootfs = path.into();
         self
     }
 
     /// Set hostname
+    #[must_use]
     pub fn hostname(mut self, name: impl Into<String>) -> Self {
         self.config.hostname = name.into();
         self
     }
 
     /// Set working directory
+    #[must_use]
     pub fn workdir(mut self, path: impl Into<PathBuf>) -> Self {
         self.config.workdir = path.into();
         self
     }
 
     /// Add environment variable
+    #[must_use]
     pub fn env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.config.env.push((key.into(), value.into()));
         self
     }
 
     /// Set CPU quota in microseconds
+    #[must_use]
     pub fn cpu_quota_us(mut self, quota: u64) -> Self {
         self.config.cpu.quota_us = quota;
         self
     }
 
     /// Set CPU percentage (convenience method)
+    #[must_use]
     pub fn cpu_percent(mut self, percent: u32) -> Self {
         self.config.cpu = CpuConfig::from_percent(percent);
         self
     }
 
     /// Set memory limit in bytes
+    #[must_use]
     pub fn memory_max(mut self, bytes: u64) -> Self {
         self.config.memory = MemoryConfig::with_limit(bytes);
         self
     }
 
     /// Enable network namespace
+    #[must_use]
     pub fn with_network(mut self) -> Self {
         self.config.network = true;
         self.config.namespaces = self.config.namespaces.union(NamespaceFlags::NEWNET);
@@ -209,12 +219,14 @@ impl ContainerConfigBuilder {
     }
 
     /// Set read-only root filesystem
+    #[must_use]
     pub fn readonly(mut self) -> Self {
         self.config.readonly_rootfs = true;
         self
     }
 
     /// Build the configuration
+    #[must_use]
     pub fn build(self) -> ContainerConfig {
         self.config
     }
@@ -255,15 +267,15 @@ pub enum ContainerError {
 impl fmt::Display for ContainerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ContainerError::Cgroup(e) => write!(f, "Cgroup error: {}", e),
-            ContainerError::Namespace(e) => write!(f, "Namespace error: {}", e),
+            ContainerError::Cgroup(e) => write!(f, "Cgroup error: {e}"),
+            ContainerError::Namespace(e) => write!(f, "Namespace error: {e}"),
             ContainerError::InvalidState { current, operation } => {
-                write!(f, "Cannot {} container in {} state", operation, current)
+                write!(f, "Cannot {operation} container in {current} state")
             }
-            ContainerError::ProcessError(msg) => write!(f, "Process error: {}", msg),
-            ContainerError::ConfigError(msg) => write!(f, "Config error: {}", msg),
-            ContainerError::IoError(msg) => write!(f, "I/O error: {}", msg),
-            ContainerError::NotFound(id) => write!(f, "Container not found: {}", id),
+            ContainerError::ProcessError(msg) => write!(f, "Process error: {msg}"),
+            ContainerError::ConfigError(msg) => write!(f, "Config error: {msg}"),
+            ContainerError::IoError(msg) => write!(f, "I/O error: {msg}"),
+            ContainerError::NotFound(id) => write!(f, "Container not found: {id}"),
         }
     }
 }
@@ -306,6 +318,10 @@ impl Container {
     /// # Arguments
     /// * `id` - Unique container identifier
     /// * `config` - Container configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn create(id: &str, config: ContainerConfig) -> Result<Self, ContainerError> {
         // Validate configuration
         if !config.rootfs.exists() {
@@ -336,6 +352,10 @@ impl Container {
     }
 
     /// Start the container
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn start(&mut self) -> Result<(), ContainerError> {
         if self.state != ContainerState::Created && self.state != ContainerState::Stopped {
             return Err(ContainerError::InvalidState {
@@ -435,6 +455,7 @@ impl Container {
 
     /// Spawn init process (non-Linux stub)
     #[cfg(not(target_os = "linux"))]
+    #[allow(clippy::unused_self)]
     fn spawn_init(&self) -> Result<u32, ContainerError> {
         Err(ContainerError::ProcessError(
             "Container runtime requires Linux".into(),
@@ -448,7 +469,13 @@ impl Container {
     ///
     /// # Returns
     /// Exit code of the command
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn exec(&mut self, cmd: &[&str]) -> Result<i32, ContainerError> {
+        use std::process::Command;
+
         if self.state != ContainerState::Running {
             return Err(ContainerError::InvalidState {
                 current: self.state,
@@ -459,8 +486,6 @@ impl Container {
         if cmd.is_empty() {
             return Err(ContainerError::ConfigError("Empty command".into()));
         }
-
-        use std::process::Command;
 
         // Execute command in container's namespace
         // In production, would use nsenter or setns
@@ -475,6 +500,10 @@ impl Container {
     }
 
     /// Pause the container (freeze all processes)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn pause(&mut self) -> Result<(), ContainerError> {
         if self.state != ContainerState::Running {
             return Err(ContainerError::InvalidState {
@@ -490,6 +519,10 @@ impl Container {
     }
 
     /// Resume a paused container
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn resume(&mut self) -> Result<(), ContainerError> {
         if self.state != ContainerState::Paused {
             return Err(ContainerError::InvalidState {
@@ -505,6 +538,10 @@ impl Container {
     }
 
     /// Stop the container
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn stop(&mut self) -> Result<(), ContainerError> {
         if self.state != ContainerState::Running && self.state != ContainerState::Paused {
@@ -534,6 +571,10 @@ impl Container {
     }
 
     /// Stop the container (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn stop(&mut self) -> Result<(), ContainerError> {
         Err(ContainerError::ProcessError(
@@ -544,6 +585,10 @@ impl Container {
     /// Destroy the container
     ///
     /// Stops the container if running and removes all resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn destroy(mut self) -> Result<(), ContainerError> {
         // Stop if running
         if self.state == ContainerState::Running || self.state == ContainerState::Paused {
@@ -559,41 +604,58 @@ impl Container {
     // Getters
 
     /// Get container ID
+    #[must_use]
     pub fn id(&self) -> &str {
         &self.id
     }
 
     /// Get current state
+    #[must_use]
     pub fn state(&self) -> ContainerState {
         self.state
     }
 
     /// Get init process PID
+    #[must_use]
     pub fn pid(&self) -> Option<u32> {
         self.init_pid
     }
 
     /// Get configuration
+    #[must_use]
     pub fn config(&self) -> &ContainerConfig {
         &self.config
     }
 
     /// Get cgroup path
+    #[must_use]
     pub fn cgroup_path(&self) -> &Path {
         self.cgroup.path()
     }
 
     /// Get current memory usage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn memory_usage(&self) -> Result<u64, ContainerError> {
         Ok(self.cgroup.memory_current()?)
     }
 
     /// Get current CPU usage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn cpu_usage(&self) -> Result<u64, ContainerError> {
         Ok(self.cgroup.cpu_usage_us()?)
     }
 
     /// Update CPU limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn update_cpu(&mut self, config: &CpuConfig) -> Result<(), ContainerError> {
         self.cgroup.set_cpu(config)?;
         self.config.cpu = *config;
@@ -601,6 +663,10 @@ impl Container {
     }
 
     /// Update memory limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn update_memory(&mut self, config: &MemoryConfig) -> Result<(), ContainerError> {
         self.cgroup.set_memory(config)?;
         self.config.memory = *config;
@@ -609,6 +675,7 @@ impl Container {
 }
 
 #[cfg(feature = "std")]
+#[allow(clippy::missing_fields_in_debug)]
 impl fmt::Debug for Container {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Container")

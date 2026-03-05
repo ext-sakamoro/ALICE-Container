@@ -78,6 +78,7 @@ impl Default for SchedulerConfig {
 
 impl SchedulerConfig {
     /// Create config for latency-sensitive workload
+    #[must_use]
     pub fn low_latency() -> Self {
         Self {
             target_latency_us: 100, // 100us target
@@ -90,6 +91,7 @@ impl SchedulerConfig {
     }
 
     /// Create config for batch workload
+    #[must_use]
     pub fn batch() -> Self {
         Self {
             target_latency_us: 100_000, // 100ms acceptable
@@ -124,6 +126,7 @@ pub struct CpuStats {
 impl CpuStats {
     /// Parse from cpu.stat content
     #[cfg(feature = "std")]
+    #[must_use]
     pub fn from_cpu_stat(content: &str) -> Self {
         let mut stats = CpuStats::default();
 
@@ -174,6 +177,7 @@ pub struct DynamicScheduler {
 #[cfg(feature = "std")]
 impl DynamicScheduler {
     /// Create a new dynamic scheduler
+    #[must_use]
     pub fn new(cgroup: CgroupController, config: SchedulerConfig) -> Self {
         let current_quota_us = config.max_quota_us;
 
@@ -189,6 +193,10 @@ impl DynamicScheduler {
     }
 
     /// Start scheduling with initial quota
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn start(&mut self) -> Result<(), CgroupError> {
         // Set initial CPU quota
         self.cgroup
@@ -199,6 +207,10 @@ impl DynamicScheduler {
     }
 
     /// Stop scheduling
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn stop(&mut self) -> Result<(), CgroupError> {
         self.running = false;
         // Reset to unlimited
@@ -208,6 +220,10 @@ impl DynamicScheduler {
     /// Perform one scheduling tick
     ///
     /// Should be called periodically (every `tick_interval_ms`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn tick(&mut self) -> Result<SchedulerDecision, CgroupError> {
         if !self.running {
             return Ok(SchedulerDecision::Idle);
@@ -288,6 +304,10 @@ impl DynamicScheduler {
     }
 
     /// Force burst mode (temporarily maximize quota)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn burst_mode(&mut self) -> Result<(), CgroupError> {
         self.current_quota_us = self.config.max_quota_us;
         self.cgroup
@@ -295,6 +315,10 @@ impl DynamicScheduler {
     }
 
     /// Force throttle mode (minimize quota)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn throttle(&mut self) -> Result<(), CgroupError> {
         self.current_quota_us = self.config.min_quota_us;
         self.cgroup
@@ -302,6 +326,10 @@ impl DynamicScheduler {
     }
 
     /// Set specific quota
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_quota(&mut self, quota_us: u64) -> Result<(), CgroupError> {
         let quota = quota_us
             .max(self.config.min_quota_us)
@@ -313,12 +341,14 @@ impl DynamicScheduler {
 
     /// Get current quota
     #[inline(always)]
+    #[must_use]
     pub fn current_quota(&self) -> u64 {
         self.current_quota_us
     }
 
     /// Get scheduler statistics
     #[inline(always)]
+    #[must_use]
     pub fn stats(&self) -> SchedulerStats {
         SchedulerStats {
             current_quota_us: self.current_quota_us,
@@ -368,6 +398,7 @@ pub struct SchedulerStats {
 /// # Returns
 /// Quota in microseconds
 #[inline(always)]
+#[must_use]
 pub const fn quota_from_percent(cpu_percent: u32, period_us: u64) -> u64 {
     (period_us * cpu_percent as u64) / 100
 }
@@ -381,6 +412,7 @@ pub const fn quota_from_percent(cpu_percent: u32, period_us: u64) -> u64 {
 /// # Returns
 /// CPU percentage
 #[inline(always)]
+#[must_use]
 pub const fn percent_from_quota(quota_us: u64, period_us: u64) -> u32 {
     if period_us == 0 {
         0

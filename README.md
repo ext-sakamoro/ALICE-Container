@@ -1,6 +1,6 @@
 # ALICE-Container
 
-**Minimal Container Runtime with Direct Kernel Control** - v0.2.0
+**Minimal Container Runtime with Direct Kernel Control** - v0.2.1
 
 > "No Docker, no Podman, just Rust and the Linux kernel."
 
@@ -298,6 +298,40 @@ loop {
 }
 ```
 
+## FFI Bindings (feature: `ffi`)
+
+45 `extern "C"` functions with `ac_ctr_*` prefix for Unity, UE5, and C consumers.
+
+| Category | Functions | Description |
+|----------|-----------|-------------|
+| Config | 8 | Create/set hostname, CPU, memory, network, readonly |
+| Container | 13 | Create, start, stop, pause, resume, exec, destroy, getters |
+| Cgroup | 12 | Create, open, set limits, freeze, kill, monitor |
+| Scheduler | 8 | Dynamic CPU quota adjustment |
+| Utility | 3 | Quota conversion, version |
+| Memory | 1 | String free |
+
+### Unity C# (`bindings/unity/AliceContainer.cs`)
+
+45 DllImport + 5 RAII handles (ConfigHandle, ContainerHandle, CgroupHandle, SchedulerHandle, StringHandle).
+
+### UE5 C++ (`bindings/ue5/AliceContainer.h`)
+
+45 extern C + 5 RAII types (ConfigPtr, ContainerPtr, CgroupPtr, SchedulerPtr, StringPtr).
+
+## Test Suite
+
+| Module | Tests |
+|--------|-------|
+| cgroup | 5 |
+| container | 4 |
+| namespace | 5 |
+| rootfs | 2 |
+| scheduler | 5 |
+| ffi | 12 |
+| lib | 1 |
+| **Total** | **35** |
+
 ## Cross-Crate Bridges
 
 ### ALICE-Analytics Bridge (feature: `analytics`)
@@ -469,6 +503,7 @@ cargo build --release --no-default-features
 | `clone3` | 5.7+ | CLONE_INTO_CGROUP support |
 | `psi` | 4.20+ | Pressure Stall Information monitoring |
 | `full` | 5.7+ | All advanced features |
+| `ffi` | - | C-ABI FFI for Unity/UE5 (45 functions) |
 
 ## Comparison with Alternatives
 

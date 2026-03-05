@@ -7,6 +7,7 @@
 //! sudo cargo run --example cgroup_control
 //! ```
 
+#[cfg(target_os = "linux")]
 use alice_container::prelude::*;
 
 fn main() {

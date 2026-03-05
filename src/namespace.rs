@@ -30,13 +30,13 @@ pub struct NamespaceFlags(c_int);
 
 impl NamespaceFlags {
     // Linux clone flags - define as constants for cross-platform compilation
-    const CLONE_NEWNS_VAL: c_int = 0x00020000;
-    const CLONE_NEWPID_VAL: c_int = 0x20000000;
-    const CLONE_NEWNET_VAL: c_int = 0x40000000;
-    const CLONE_NEWUTS_VAL: c_int = 0x04000000;
-    const CLONE_NEWIPC_VAL: c_int = 0x08000000;
-    const CLONE_NEWUSER_VAL: c_int = 0x10000000;
-    const CLONE_NEWCGROUP_VAL: c_int = 0x02000000;
+    const CLONE_NEWNS_VAL: c_int = 0x0002_0000;
+    const CLONE_NEWPID_VAL: c_int = 0x2000_0000;
+    const CLONE_NEWNET_VAL: c_int = 0x4000_0000;
+    const CLONE_NEWUTS_VAL: c_int = 0x0400_0000;
+    const CLONE_NEWIPC_VAL: c_int = 0x0800_0000;
+    const CLONE_NEWUSER_VAL: c_int = 0x1000_0000;
+    const CLONE_NEWCGROUP_VAL: c_int = 0x0200_0000;
 
     /// Mount namespace
     pub const NEWNS: Self = Self(Self::CLONE_NEWNS_VAL);
@@ -72,21 +72,25 @@ impl NamespaceFlags {
     );
 
     #[inline]
+    #[must_use]
     pub const fn bits(&self) -> c_int {
         self.0
     }
 
     #[inline]
+    #[must_use]
     pub const fn from_bits(bits: c_int) -> Self {
         Self(bits)
     }
 
     #[inline]
+    #[must_use]
     pub const fn contains(&self, other: Self) -> bool {
         (self.0 & other.0) == other.0
     }
 
     #[inline]
+    #[must_use]
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
@@ -104,21 +108,25 @@ pub struct Namespaces {
 
 impl Namespaces {
     /// Create with specified namespace flags
+    #[must_use]
     pub fn new(flags: NamespaceFlags) -> Self {
         Self { flags }
     }
 
     /// Create with container isolation (Mount, PID, UTS, IPC)
+    #[must_use]
     pub fn container() -> Self {
         Self::new(NamespaceFlags::CONTAINER)
     }
 
     /// Create with all namespaces except user
+    #[must_use]
     pub fn all() -> Self {
         Self::new(NamespaceFlags::ALL)
     }
 
     /// Get namespace flags
+    #[must_use]
     pub fn flags(&self) -> NamespaceFlags {
         self.flags
     }
@@ -137,6 +145,10 @@ impl Namespaces {
     }
 
     /// Unshare namespaces (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn unshare(&self) -> Result<(), NamespaceError> {
         Err(NamespaceError::NotSupported)
@@ -162,6 +174,10 @@ impl Namespaces {
     }
 
     /// Set hostname (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(all(feature = "std", not(target_os = "linux")))]
     pub fn set_hostname(&self, _hostname: &str) -> Result<(), NamespaceError> {
         Err(NamespaceError::NotSupported)
@@ -183,6 +199,7 @@ pub struct CloneFlags {
 
 impl CloneFlags {
     /// Create clone flags for container
+    #[must_use]
     pub fn container() -> Self {
         Self {
             namespaces: NamespaceFlags::CONTAINER,
@@ -191,6 +208,7 @@ impl CloneFlags {
     }
 
     /// Get combined flags
+    #[must_use]
     pub fn bits(&self) -> c_int {
         self.namespaces.bits() | self.extra
     }
@@ -277,6 +295,10 @@ where
 ///
 /// The caller must ensure that `_child_fn` is safe to call in a cloned context
 /// and that all resources accessible by the child are properly synchronized.
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(not(target_os = "linux"))]
 pub unsafe fn clone_with_namespaces<F>(
     _flags: CloneFlags,
@@ -322,6 +344,10 @@ pub fn pivot_root(new_root: &Path, put_old: &Path) -> Result<(), NamespaceError>
 }
 
 /// Pivot root (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn pivot_root(_new_root: &Path, _put_old: &Path) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
@@ -347,6 +373,10 @@ pub fn umount(target: &Path) -> Result<(), NamespaceError> {
 }
 
 /// Unmount (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn umount(_target: &Path) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
@@ -372,12 +402,16 @@ pub fn umount2(target: &Path, flags: c_int) -> Result<(), NamespaceError> {
 }
 
 /// Unmount2 (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn umount2(_target: &Path, _flags: c_int) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
 }
 
-/// MNT_DETACH flag for lazy unmount
+/// `MNT_DETACH` flag for lazy unmount
 pub const MNT_DETACH: c_int = 2;
 
 // ============================================================================
@@ -387,7 +421,7 @@ pub const MNT_DETACH: c_int = 2;
 /// Namespace operation errors
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NamespaceError {
-    /// Permission denied (need CAP_SYS_ADMIN)
+    /// Permission denied (need `CAP_SYS_ADMIN`)
     PermissionDenied,
     /// Invalid argument
     InvalidArgument,
@@ -436,11 +470,11 @@ impl core::fmt::Display for NamespaceError {
             NamespaceError::InvalidArgument => write!(f, "Invalid argument"),
             NamespaceError::OutOfMemory => write!(f, "Out of memory"),
             NamespaceError::NotInNamespace(ns) => {
-                write!(f, "Not in {} namespace", ns)
+                write!(f, "Not in {ns} namespace")
             }
             NamespaceError::InvalidPath => write!(f, "Invalid path"),
             NamespaceError::NotSupported => write!(f, "Operation not supported on this platform"),
-            NamespaceError::OsError(e) => write!(f, "OS error: {}", e),
+            NamespaceError::OsError(e) => write!(f, "OS error: {e}"),
         }
     }
 }
@@ -462,6 +496,7 @@ pub struct IdMapping {
 
 impl IdMapping {
     /// Create a simple 1:1 mapping
+    #[must_use]
     pub fn identity(id: u32) -> Self {
         Self {
             inner_id: id,
@@ -471,6 +506,7 @@ impl IdMapping {
     }
 
     /// Create mapping for root inside namespace to current user outside
+    #[must_use]
     pub fn root_to_user(outer_uid: u32) -> Self {
         Self {
             inner_id: 0,
@@ -480,6 +516,7 @@ impl IdMapping {
     }
 
     /// Format for `/proc/<pid>/uid_map` or `gid_map`
+    #[must_use]
     pub fn to_map_string(&self) -> String {
         format!("{} {} {}", self.inner_id, self.outer_id, self.count)
     }
@@ -504,6 +541,10 @@ pub fn write_uid_map(pid: u32, mapping: &IdMapping) -> Result<(), NamespaceError
 }
 
 /// Write UID mapping (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn write_uid_map(_pid: u32, _mapping: &IdMapping) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
@@ -534,6 +575,10 @@ pub fn write_gid_map(pid: u32, mapping: &IdMapping) -> Result<(), NamespaceError
 }
 
 /// Write GID mapping (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn write_gid_map(_pid: u32, _mapping: &IdMapping) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)

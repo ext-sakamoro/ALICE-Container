@@ -47,13 +47,13 @@ pub enum CgroupError {
 impl fmt::Display for CgroupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CgroupError::NotFound(path) => write!(f, "Cgroup not found: {}", path),
+            CgroupError::NotFound(path) => write!(f, "Cgroup not found: {path}"),
             CgroupError::PermissionDenied => write!(f, "Permission denied"),
-            CgroupError::InvalidParameter(msg) => write!(f, "Invalid parameter: {}", msg),
-            CgroupError::IoError(msg) => write!(f, "I/O error: {}", msg),
+            CgroupError::InvalidParameter(msg) => write!(f, "Invalid parameter: {msg}"),
+            CgroupError::IoError(msg) => write!(f, "I/O error: {msg}"),
             CgroupError::CgroupV2NotAvailable => write!(f, "Cgroup v2 not available"),
             CgroupError::ControllerNotEnabled(ctrl) => {
-                write!(f, "Controller not enabled: {}", ctrl)
+                write!(f, "Controller not enabled: {ctrl}")
             }
         }
     }
@@ -67,7 +67,7 @@ impl fmt::Display for CgroupError {
 #[derive(Debug, Clone, Copy)]
 pub struct CpuConfig {
     /// CPU quota in microseconds per period
-    /// Set to u64::MAX for unlimited
+    /// Set to `u64::MAX` for unlimited
     pub quota_us: u64,
     /// CPU period in microseconds (default: 100000 = 100ms)
     pub period_us: u64,
@@ -94,6 +94,7 @@ impl CpuConfig {
     /// # Arguments
     /// * `percent` - CPU percentage (1-100 for single core, >100 for multiple cores)
     #[inline(always)]
+    #[must_use]
     pub fn from_percent(percent: u32) -> Self {
         let period_us = 100_000u64;
         // Multiply by reciprocal instead of dividing by 100.
@@ -107,6 +108,7 @@ impl CpuConfig {
 
     /// Format for cpu.max file: "quota period"
     #[inline(always)]
+    #[must_use]
     pub fn to_cpu_max(&self) -> String {
         if self.quota_us == u64::MAX {
             format!("max {}", self.period_us)
@@ -146,6 +148,7 @@ const MEM_HIGH_FACTOR: f64 = 0.9_f64;
 impl MemoryConfig {
     /// Create config with specific memory limit
     #[inline(always)]
+    #[must_use]
     pub fn with_limit(bytes: u64) -> Self {
         // Multiply by 0.9 instead of bytes * 90 / 100 to eliminate integer division.
         let high = (bytes as f64 * MEM_HIGH_FACTOR) as u64;
@@ -175,6 +178,7 @@ pub struct IoConfig {
 
 impl IoConfig {
     /// Create I/O config for a device
+    #[must_use]
     pub fn new(device: &str) -> Self {
         Self {
             device: device.to_string(),
@@ -186,6 +190,7 @@ impl IoConfig {
     }
 
     /// Format for io.max file
+    #[must_use]
     pub fn to_io_max(&self) -> String {
         let mut parts = vec![self.device.clone()];
 
@@ -226,6 +231,10 @@ impl CgroupController {
     /// Create a new cgroup for a container
     ///
     /// Creates directory at `/sys/fs/cgroup/alice/<container_id>`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn create(container_id: &str) -> Result<Self, CgroupError> {
         let alice_root = Path::new(crate::ALICE_CGROUP);
 
@@ -252,6 +261,10 @@ impl CgroupController {
     }
 
     /// Open existing cgroup
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn open(container_id: &str) -> Result<Self, CgroupError> {
         let path = Path::new(crate::ALICE_CGROUP).join(container_id);
 
@@ -266,6 +279,7 @@ impl CgroupController {
     }
 
     /// Enable CPU, memory, and I/O controllers
+    #[allow(clippy::unused_self)]
     fn enable_controllers(&self) -> Result<(), CgroupError> {
         // Write to parent's cgroup.subtree_control
         let parent = Path::new(crate::ALICE_CGROUP);
@@ -285,6 +299,10 @@ impl CgroupController {
     }
 
     /// Set CPU limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_cpu(&self, config: &CpuConfig) -> Result<(), CgroupError> {
         // cpu.max: "quota period"
         let cpu_max = self.path.join("cpu.max");
@@ -300,6 +318,10 @@ impl CgroupController {
     }
 
     /// Set CPU quota directly (microseconds)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[inline(always)]
     pub fn set_cpu_max(&self, quota_us: u64, period_us: u64) -> Result<(), CgroupError> {
         let config = CpuConfig {
@@ -311,6 +333,10 @@ impl CgroupController {
     }
 
     /// Set memory limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_memory(&self, config: &MemoryConfig) -> Result<(), CgroupError> {
         // memory.max
         let memory_max = self.path.join("memory.max");
@@ -344,6 +370,10 @@ impl CgroupController {
     }
 
     /// Set memory limit directly (bytes)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[inline(always)]
     pub fn set_memory_max(&self, bytes: u64) -> Result<(), CgroupError> {
         let config = MemoryConfig::with_limit(bytes);
@@ -351,6 +381,10 @@ impl CgroupController {
     }
 
     /// Set I/O limits
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_io(&self, config: &IoConfig) -> Result<(), CgroupError> {
         let io_max = self.path.join("io.max");
         if io_max.exists() {
@@ -360,6 +394,10 @@ impl CgroupController {
     }
 
     /// Set I/O bandwidth limits directly
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_io_max(&self, device: &str, rbps: u64, wbps: u64) -> Result<(), CgroupError> {
         let mut config = IoConfig::new(device);
         config.rbps = rbps;
@@ -376,6 +414,10 @@ impl CgroupController {
     ///
     /// - With io_uring: 1 syscall for all operations
     /// - Without: 3+ separate write syscalls
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(feature = "io_uring")]
     pub fn set_all_batched(
         &self,
@@ -411,7 +453,11 @@ impl CgroupController {
         }
     }
 
-    /// Batched set (fallback without io_uring)
+    /// Batched set (fallback without `io_uring`)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(feature = "io_uring"))]
     pub fn set_all_batched(
         &self,
@@ -428,12 +474,20 @@ impl CgroupController {
     }
 
     /// Add a process to this cgroup
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn add_process(&self, pid: u32) -> Result<(), CgroupError> {
         let cgroup_procs = self.path.join("cgroup.procs");
         Self::write_file(&cgroup_procs, &pid.to_string())
     }
 
     /// Get current memory usage
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[inline(always)]
     pub fn memory_current(&self) -> Result<u64, CgroupError> {
         let memory_current = self.path.join("memory.current");
@@ -445,6 +499,10 @@ impl CgroupController {
     }
 
     /// Get current CPU usage (microseconds)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[inline(always)]
     pub fn cpu_usage_us(&self) -> Result<u64, CgroupError> {
         let cpu_stat = self.path.join("cpu.stat");
@@ -465,6 +523,10 @@ impl CgroupController {
     }
 
     /// Get list of processes in this cgroup
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn processes(&self) -> Result<Vec<u32>, CgroupError> {
         let cgroup_procs = self.path.join("cgroup.procs");
         let content = Self::read_file(&cgroup_procs)?;
@@ -478,6 +540,10 @@ impl CgroupController {
     }
 
     /// Freeze all processes in this cgroup
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn freeze(&self) -> Result<(), CgroupError> {
         let cgroup_freeze = self.path.join("cgroup.freeze");
         if cgroup_freeze.exists() {
@@ -487,6 +553,10 @@ impl CgroupController {
     }
 
     /// Unfreeze all processes in this cgroup
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn unfreeze(&self) -> Result<(), CgroupError> {
         let cgroup_freeze = self.path.join("cgroup.freeze");
         if cgroup_freeze.exists() {
@@ -496,6 +566,10 @@ impl CgroupController {
     }
 
     /// Kill all processes in this cgroup
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn kill_all(&self) -> Result<(), CgroupError> {
         let cgroup_kill = self.path.join("cgroup.kill");
@@ -515,6 +589,10 @@ impl CgroupController {
     }
 
     /// Kill all processes (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn kill_all(&self) -> Result<(), CgroupError> {
         Err(CgroupError::CgroupV2NotAvailable)
@@ -523,6 +601,10 @@ impl CgroupController {
     /// Destroy this cgroup
     ///
     /// Kills all processes and removes the cgroup directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn destroy(self) -> Result<(), CgroupError> {
         // Kill all processes first
@@ -538,17 +620,23 @@ impl CgroupController {
     }
 
     /// Destroy (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn destroy(self) -> Result<(), CgroupError> {
         Err(CgroupError::CgroupV2NotAvailable)
     }
 
     /// Get cgroup path
+    #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
     }
 
     /// Get container ID
+    #[must_use]
     pub fn container_id(&self) -> &str {
         &self.container_id
     }

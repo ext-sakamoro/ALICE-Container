@@ -1,6 +1,6 @@
 [package]
 name = "alice-container"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["ALICE Project"]
 description = "Minimal container runtime with direct cgroup v2 and namespace control"
@@ -10,9 +10,14 @@ keywords = ["container", "cgroup", "namespace", "runtime", "isolation"]
 categories = ["os", "virtualization"]
 publish = false
 
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
 [features]
 default = ["std"]
 std = []
+# C-ABI FFI for Unity/UE5
+ffi = ["std"]
 # io_uring support (Linux 5.6+)
 io_uring = ["std"]
 # clone3 with CLONE_INTO_CGROUP (Linux 5.7+)

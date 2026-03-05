@@ -1,7 +1,7 @@
 //! Root Filesystem Construction
 //!
 //! Provides utilities for setting up container root filesystems,
-//! including bind mounts, proc/dev setup, and pivot_root preparation.
+//! including bind mounts, proc/dev setup, and `pivot_root` preparation.
 //!
 //! ## Minimal Container Filesystem
 //!
@@ -89,11 +89,11 @@ pub enum RootFsError {
 impl core::fmt::Display for RootFsError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            RootFsError::PathNotFound(path) => write!(f, "Path not found: {}", path),
+            RootFsError::PathNotFound(path) => write!(f, "Path not found: {path}"),
             RootFsError::PermissionDenied => write!(f, "Permission denied"),
-            RootFsError::MountFailed(msg) => write!(f, "Mount failed: {}", msg),
-            RootFsError::DeviceCreationFailed(msg) => write!(f, "Device creation failed: {}", msg),
-            RootFsError::IoError(msg) => write!(f, "I/O error: {}", msg),
+            RootFsError::MountFailed(msg) => write!(f, "Mount failed: {msg}"),
+            RootFsError::DeviceCreationFailed(msg) => write!(f, "Device creation failed: {msg}"),
+            RootFsError::IoError(msg) => write!(f, "I/O error: {msg}"),
             RootFsError::NotSupported => write!(f, "Not supported on this platform"),
         }
     }
@@ -126,6 +126,10 @@ pub struct RootFs {
 #[cfg(feature = "std")]
 impl RootFs {
     /// Create a new root filesystem at the given path
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn create(path: impl Into<PathBuf>) -> Result<Self, RootFsError> {
         let path = path.into();
 
@@ -161,6 +165,10 @@ impl RootFs {
     }
 
     /// Open existing root filesystem
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn open(path: impl Into<PathBuf>) -> Result<Self, RootFsError> {
         let path = path.into();
 
@@ -177,17 +185,23 @@ impl RootFs {
     }
 
     /// Set cleanup on drop
+    #[must_use]
     pub fn with_cleanup(mut self) -> Self {
         self.cleanup = true;
         self
     }
 
     /// Get root path
+    #[must_use]
     pub fn path(&self) -> &Path {
         &self.path
     }
 
     /// Bind mount a host directory into the rootfs (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn bind_mount(&self, source: &Path, target: &str) -> Result<(), RootFsError> {
         let target_path = self.path.join(target);
@@ -203,12 +217,20 @@ impl RootFs {
     }
 
     /// Bind mount (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn bind_mount(&self, _source: &Path, _target: &str) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Bind mount read-only (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn bind_mount_ro(&self, source: &Path, target: &str) -> Result<(), RootFsError> {
         // First bind mount
@@ -226,24 +248,40 @@ impl RootFs {
     }
 
     /// Bind mount read-only (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn bind_mount_ro(&self, _source: &Path, _target: &str) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Mount proc filesystem (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn mount_proc(&self) -> Result<(), RootFsError> {
         mount_proc(&self.path.join("proc"))
     }
 
     /// Mount proc (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn mount_proc(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Mount sysfs (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn mount_sys(&self) -> Result<(), RootFsError> {
         let target = self.path.join("sys");
@@ -257,12 +295,20 @@ impl RootFs {
     }
 
     /// Mount sysfs (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn mount_sys(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Mount tmpfs (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn mount_tmp(&self) -> Result<(), RootFsError> {
         let target = self.path.join("tmp");
@@ -276,52 +322,80 @@ impl RootFs {
     }
 
     /// Mount tmpfs (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn mount_tmp(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Set up minimal /dev (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn setup_dev(&self) -> Result<(), RootFsError> {
         mount_dev(&self.path.join("dev"))
     }
 
     /// Setup dev (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn setup_dev(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Write /etc/hostname
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_hostname(&self, hostname: &str) -> Result<(), RootFsError> {
         let path = self.path.join("etc/hostname");
         let mut file = File::create(&path)?;
-        writeln!(file, "{}", hostname)?;
+        writeln!(file, "{hostname}")?;
         Ok(())
     }
 
     /// Write /etc/hosts
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_hosts(&self, hostname: &str) -> Result<(), RootFsError> {
         let path = self.path.join("etc/hosts");
         let mut file = File::create(&path)?;
         writeln!(file, "127.0.0.1\tlocalhost")?;
         writeln!(file, "::1\t\tlocalhost")?;
-        writeln!(file, "127.0.0.1\t{}", hostname)?;
+        writeln!(file, "127.0.0.1\t{hostname}")?;
         Ok(())
     }
 
     /// Write /etc/resolv.conf
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn set_resolv_conf(&self, nameservers: &[&str]) -> Result<(), RootFsError> {
         let path = self.path.join("etc/resolv.conf");
         let mut file = File::create(&path)?;
         for ns in nameservers {
-            writeln!(file, "nameserver {}", ns)?;
+            writeln!(file, "nameserver {ns}")?;
         }
         Ok(())
     }
 
     /// Copy a file into the rootfs
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     pub fn copy_file(&self, source: &Path, target: &str) -> Result<(), RootFsError> {
         let target_path = self.path.join(target);
         if let Some(parent) = target_path.parent() {
@@ -332,6 +406,10 @@ impl RootFs {
     }
 
     /// Create a symlink
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(unix)]
     pub fn symlink(&self, target: &str, link: &str) -> Result<(), RootFsError> {
         let link_path = self.path.join(link);
@@ -343,12 +421,20 @@ impl RootFs {
     }
 
     /// Create symlink (non-Unix stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(unix))]
     pub fn symlink(&self, _target: &str, _link: &str) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Prepare for pivot_root (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn prepare_pivot(&self) -> Result<PathBuf, RootFsError> {
         // Make mount private to avoid affecting host
@@ -375,13 +461,21 @@ impl RootFs {
         Ok(put_old)
     }
 
-    /// Prepare for pivot_root (non-Linux stub)
+    /// Prepare for `pivot_root` (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn prepare_pivot(&self) -> Result<PathBuf, RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
     /// Clean up old root after pivot_root (Linux only)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(target_os = "linux")]
     pub fn cleanup_old_root() -> Result<(), RootFsError> {
         use crate::namespace::{umount2, MNT_DETACH};
@@ -399,6 +493,10 @@ impl RootFs {
     }
 
     /// Cleanup old root (non-Linux stub)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
     pub fn cleanup_old_root() -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
@@ -420,6 +518,10 @@ impl Drop for RootFs {
 // ============================================================================
 
 /// Low-level mount wrapper (Linux only)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", target_os = "linux"))]
 pub fn mount(
     source: Option<&Path>,
@@ -474,6 +576,10 @@ pub fn mount(
 }
 
 /// Mount (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn mount(
     _source: Option<&Path>,
@@ -486,6 +592,10 @@ pub fn mount(
 }
 
 /// Mount proc filesystem (Linux only)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", target_os = "linux"))]
 pub fn mount_proc(target: &Path) -> Result<(), RootFsError> {
     fs::create_dir_all(target)?;
@@ -500,12 +610,20 @@ pub fn mount_proc(target: &Path) -> Result<(), RootFsError> {
 }
 
 /// Mount proc (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn mount_proc(_target: &Path) -> Result<(), RootFsError> {
     Err(RootFsError::NotSupported)
 }
 
 /// Mount minimal /dev with basic device nodes (Linux only)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", target_os = "linux"))]
 pub fn mount_dev(target: &Path) -> Result<(), RootFsError> {
     fs::create_dir_all(target)?;
@@ -545,6 +663,10 @@ pub fn mount_dev(target: &Path) -> Result<(), RootFsError> {
 }
 
 /// Mount dev (non-Linux stub)
+///
+/// # Errors
+///
+/// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
 pub fn mount_dev(_target: &Path) -> Result<(), RootFsError> {
     Err(RootFsError::NotSupported)

@@ -1,3 +1,16 @@
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_lossless,
+    clippy::similar_names,
+    clippy::many_single_char_names,
+    clippy::module_name_repetitions,
+    clippy::inline_always,
+    clippy::too_many_lines
+)]
+
 //! # ALICE-Container
 //!
 //! **Minimal Container Runtime with Direct Kernel Control**
@@ -66,7 +79,7 @@
 //! ## Requirements
 //!
 //! - Linux kernel 5.0+ (cgroup v2 unified hierarchy)
-//! - Root privileges (CAP_SYS_ADMIN)
+//! - Root privileges (`CAP_SYS_ADMIN`)
 //! - Cgroup v2 mounted at `/sys/fs/cgroup`
 //!
 //! ## Optional Features
@@ -86,6 +99,10 @@ pub mod container;
 pub mod namespace;
 pub mod rootfs;
 pub mod scheduler;
+
+// C-ABI FFI for Unity/UE5
+#[cfg(feature = "ffi")]
+pub mod ffi;
 
 // Advanced modules (feature-gated)
 #[cfg(feature = "io_uring")]

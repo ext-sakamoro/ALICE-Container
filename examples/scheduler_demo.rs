@@ -24,8 +24,8 @@ fn main() {
     for (name, config) in &configs {
         println!("  {} Mode:", name);
         println!("    Target latency: {} us", config.target_latency_us);
-        println!("    Min quota:      {}%", config.min_quota_percent);
-        println!("    Max quota:      {}%", config.max_quota_percent);
+        println!("    Min quota:      {} us", config.min_quota_us);
+        println!("    Max quota:      {} us", config.max_quota_us);
         println!("    Period:         {} us", config.period_us);
         println!();
     }

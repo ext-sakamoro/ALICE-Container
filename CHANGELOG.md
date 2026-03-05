@@ -2,6 +2,17 @@
 
 All notable changes to ALICE-Container will be documented in this file.
 
+## [0.2.1] - 2026-03-04
+
+### Added
+- `ffi` — 45 `extern "C"` functions (`ac_ctr_*` prefix) for Unity/UE5/C consumers
+- `bindings/unity/AliceContainer.cs` — 45 DllImport + 5 RAII handles
+- `bindings/ue5/AliceContainer.h` — 45 extern C + 5 RAII types
+- 12 FFI tests (null safety, config lifecycle, quota helpers, version)
+
+### Fixed
+- `examples/scheduler_demo.rs` — `min_quota_percent`/`max_quota_percent` → `min_quota_us`/`max_quota_us`
+
 ## [0.2.0] - 2026-02-23
 
 ### Added
