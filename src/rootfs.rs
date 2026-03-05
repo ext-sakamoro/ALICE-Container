@@ -89,12 +89,12 @@ pub enum RootFsError {
 impl core::fmt::Display for RootFsError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            RootFsError::PathNotFound(path) => write!(f, "Path not found: {path}"),
-            RootFsError::PermissionDenied => write!(f, "Permission denied"),
-            RootFsError::MountFailed(msg) => write!(f, "Mount failed: {msg}"),
-            RootFsError::DeviceCreationFailed(msg) => write!(f, "Device creation failed: {msg}"),
-            RootFsError::IoError(msg) => write!(f, "I/O error: {msg}"),
-            RootFsError::NotSupported => write!(f, "Not supported on this platform"),
+            Self::PathNotFound(path) => write!(f, "Path not found: {path}"),
+            Self::PermissionDenied => write!(f, "Permission denied"),
+            Self::MountFailed(msg) => write!(f, "Mount failed: {msg}"),
+            Self::DeviceCreationFailed(msg) => write!(f, "Device creation failed: {msg}"),
+            Self::IoError(msg) => write!(f, "I/O error: {msg}"),
+            Self::NotSupported => write!(f, "Not supported on this platform"),
         }
     }
 }
@@ -103,9 +103,9 @@ impl core::fmt::Display for RootFsError {
 impl From<std::io::Error> for RootFsError {
     fn from(e: std::io::Error) -> Self {
         if e.kind() == std::io::ErrorKind::PermissionDenied {
-            RootFsError::PermissionDenied
+            Self::PermissionDenied
         } else {
-            RootFsError::IoError(e.to_string())
+            Self::IoError(e.to_string())
         }
     }
 }
@@ -186,7 +186,7 @@ impl RootFs {
 
     /// Set cleanup on drop
     #[must_use]
-    pub fn with_cleanup(mut self) -> Self {
+    pub const fn with_cleanup(mut self) -> Self {
         self.cleanup = true;
         self
     }
@@ -222,7 +222,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn bind_mount(&self, _source: &Path, _target: &str) -> Result<(), RootFsError> {
+    pub const fn bind_mount(&self, _source: &Path, _target: &str) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
@@ -253,7 +253,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn bind_mount_ro(&self, _source: &Path, _target: &str) -> Result<(), RootFsError> {
+    pub const fn bind_mount_ro(&self, _source: &Path, _target: &str) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
@@ -273,7 +273,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn mount_proc(&self) -> Result<(), RootFsError> {
+    pub const fn mount_proc(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
@@ -300,7 +300,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn mount_sys(&self) -> Result<(), RootFsError> {
+    pub const fn mount_sys(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
@@ -327,7 +327,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn mount_tmp(&self) -> Result<(), RootFsError> {
+    pub const fn mount_tmp(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
@@ -347,7 +347,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn setup_dev(&self) -> Result<(), RootFsError> {
+    pub const fn setup_dev(&self) -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
@@ -467,7 +467,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn prepare_pivot(&self) -> Result<PathBuf, RootFsError> {
+    pub const fn prepare_pivot(&self) -> Result<PathBuf, RootFsError> {
         Err(RootFsError::NotSupported)
     }
 
@@ -498,7 +498,7 @@ impl RootFs {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn cleanup_old_root() -> Result<(), RootFsError> {
+    pub const fn cleanup_old_root() -> Result<(), RootFsError> {
         Err(RootFsError::NotSupported)
     }
 }
@@ -581,7 +581,7 @@ pub fn mount(
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn mount(
+pub const fn mount(
     _source: Option<&Path>,
     _target: &Path,
     _fstype: Option<&str>,
@@ -615,7 +615,7 @@ pub fn mount_proc(target: &Path) -> Result<(), RootFsError> {
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn mount_proc(_target: &Path) -> Result<(), RootFsError> {
+pub const fn mount_proc(_target: &Path) -> Result<(), RootFsError> {
     Err(RootFsError::NotSupported)
 }
 
@@ -668,7 +668,7 @@ pub fn mount_dev(target: &Path) -> Result<(), RootFsError> {
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn mount_dev(_target: &Path) -> Result<(), RootFsError> {
+pub const fn mount_dev(_target: &Path) -> Result<(), RootFsError> {
     Err(RootFsError::NotSupported)
 }
 
@@ -718,9 +718,9 @@ mod tests {
 
     #[test]
     fn test_mount_flags() {
-        assert!(mount_flags::MS_RDONLY > 0);
-        assert!(mount_flags::MS_BIND > 0);
-        assert!(mount_flags::MS_REC > 0);
+        const { assert!(mount_flags::MS_RDONLY > 0) };
+        const { assert!(mount_flags::MS_BIND > 0) };
+        const { assert!(mount_flags::MS_REC > 0) };
     }
 
     #[test]
@@ -733,5 +733,247 @@ mod tests {
 
         let err = RootFsError::NotSupported;
         assert!(err.to_string().contains("Not supported"));
+    }
+
+    // --- mount_flags additional tests ---
+
+    #[test]
+    fn test_mount_flags_distinct() {
+        // All basic mount flags must be distinct non-zero values.
+        let flags = [
+            mount_flags::MS_RDONLY,
+            mount_flags::MS_NODEV,
+            mount_flags::MS_NOSUID,
+            mount_flags::MS_NOEXEC,
+            mount_flags::MS_BIND,
+        ];
+        for (i, &a) in flags.iter().enumerate() {
+            for (j, &b) in flags.iter().enumerate() {
+                if i != j {
+                    assert_ne!(a, b, "flags at index {i} and {j} must differ");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_mount_flags_ms_private_nonzero() {
+        const { assert!(mount_flags::MS_PRIVATE > 0) };
+    }
+
+    #[test]
+    fn test_mount_flags_ms_slave_nonzero() {
+        const { assert!(mount_flags::MS_SLAVE > 0) };
+    }
+
+    #[test]
+    fn test_mount_flags_ms_remount_nonzero() {
+        const { assert!(mount_flags::MS_REMOUNT > 0) };
+    }
+
+    #[test]
+    fn test_mount_flag_ms_rec_gt_ms_bind() {
+        // MS_REC is defined larger than MS_BIND
+        const { assert!(mount_flags::MS_REC > mount_flags::MS_BIND) };
+    }
+
+    // --- RootFsError additional tests ---
+
+    #[test]
+    fn test_rootfs_error_mount_failed_display() {
+        let err = RootFsError::MountFailed("proc".into());
+        assert!(err.to_string().contains("Mount failed"));
+        assert!(err.to_string().contains("proc"));
+    }
+
+    #[test]
+    fn test_rootfs_error_device_creation_failed_display() {
+        let err = RootFsError::DeviceCreationFailed("null".into());
+        assert!(err.to_string().contains("Device creation failed"));
+        assert!(err.to_string().contains("null"));
+    }
+
+    #[test]
+    fn test_rootfs_error_io_error_display() {
+        let err = RootFsError::IoError("read error".into());
+        assert!(err.to_string().contains("I/O error"));
+        assert!(err.to_string().contains("read error"));
+    }
+
+    #[test]
+    fn test_rootfs_error_from_io_error_permission() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
+        let err = RootFsError::from(io_err);
+        assert!(matches!(err, RootFsError::PermissionDenied));
+    }
+
+    #[test]
+    fn test_rootfs_error_from_io_error_other() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
+        let err = RootFsError::from(io_err);
+        assert!(matches!(err, RootFsError::IoError(_)));
+    }
+
+    // --- RootFs create/open tests ---
+
+    #[test]
+    fn test_rootfs_create_creates_directories() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap();
+        assert!(rootfs.path().join("bin").exists());
+        assert!(rootfs.path().join("etc").exists());
+        assert!(rootfs.path().join("proc").exists());
+        assert!(rootfs.path().join("dev").exists());
+        assert!(rootfs.path().join("tmp").exists());
+        assert!(rootfs.path().join(".old_root").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rootfs_create_path_getter() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-pathtest-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap();
+        assert_eq!(rootfs.path(), dir.as_path());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rootfs_open_nonexistent_returns_error() {
+        let result = RootFs::open("/nonexistent/path/abc123");
+        assert!(result.is_err());
+        if let Err(RootFsError::PathNotFound(p)) = result {
+            assert!(p.contains("abc123"));
+        }
+    }
+
+    #[test]
+    fn test_rootfs_open_existing() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-opentest-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let rootfs = RootFs::open(&dir).unwrap();
+        assert_eq!(rootfs.path(), dir.as_path());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rootfs_set_hostname() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-hostname-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap();
+        rootfs.set_hostname("mycontainer").unwrap();
+        let content = std::fs::read_to_string(dir.join("etc/hostname")).unwrap();
+        assert!(content.contains("mycontainer"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rootfs_set_hosts() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-hosts-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap();
+        rootfs.set_hosts("webserver").unwrap();
+        let content = std::fs::read_to_string(dir.join("etc/hosts")).unwrap();
+        assert!(content.contains("127.0.0.1"));
+        assert!(content.contains("webserver"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rootfs_set_resolv_conf() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-resolv-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap();
+        rootfs.set_resolv_conf(&["8.8.8.8", "1.1.1.1"]).unwrap();
+        let content = std::fs::read_to_string(dir.join("etc/resolv.conf")).unwrap();
+        assert!(content.contains("8.8.8.8"));
+        assert!(content.contains("1.1.1.1"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_rootfs_copy_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-copy-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap();
+        // Write a temp source file
+        let src = std::env::temp_dir().join("alice-test-src.txt");
+        std::fs::write(&src, b"hello container").unwrap();
+        rootfs.copy_file(&src, "usr/test.txt").unwrap();
+        let content = std::fs::read(dir.join("usr/test.txt")).unwrap();
+        assert_eq!(content, b"hello container");
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_file(&src);
+    }
+
+    #[test]
+    fn test_rootfs_with_cleanup_flag() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-cleanup-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap().with_cleanup();
+        let path = rootfs.path().to_path_buf();
+        assert!(path.exists());
+        drop(rootfs);
+        // After drop, the directory should be removed
+        assert!(!path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_rootfs_symlink() {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-symlink-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .subsec_nanos()
+        ));
+        let rootfs = RootFs::create(&dir).unwrap();
+        rootfs.symlink("/bin/sh", "usr/bin/sh").unwrap();
+        let link = dir.join("usr/bin/sh");
+        assert!(link.exists() || std::fs::symlink_metadata(&link).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

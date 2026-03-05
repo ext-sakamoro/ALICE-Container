@@ -22,7 +22,7 @@ fn main() {
     ];
 
     for (name, config) in &configs {
-        println!("  {} Mode:", name);
+        println!("  {name} Mode:");
         println!("    Target latency: {} us", config.target_latency_us);
         println!("    Min quota:      {} us", config.min_quota_us);
         println!("    Max quota:      {} us", config.max_quota_us);

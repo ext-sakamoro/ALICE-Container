@@ -47,12 +47,12 @@ pub enum CgroupError {
 impl fmt::Display for CgroupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CgroupError::NotFound(path) => write!(f, "Cgroup not found: {path}"),
-            CgroupError::PermissionDenied => write!(f, "Permission denied"),
-            CgroupError::InvalidParameter(msg) => write!(f, "Invalid parameter: {msg}"),
-            CgroupError::IoError(msg) => write!(f, "I/O error: {msg}"),
-            CgroupError::CgroupV2NotAvailable => write!(f, "Cgroup v2 not available"),
-            CgroupError::ControllerNotEnabled(ctrl) => {
+            Self::NotFound(path) => write!(f, "Cgroup not found: {path}"),
+            Self::PermissionDenied => write!(f, "Permission denied"),
+            Self::InvalidParameter(msg) => write!(f, "Invalid parameter: {msg}"),
+            Self::IoError(msg) => write!(f, "I/O error: {msg}"),
+            Self::CgroupV2NotAvailable => write!(f, "Cgroup v2 not available"),
+            Self::ControllerNotEnabled(ctrl) => {
                 write!(f, "Controller not enabled: {ctrl}")
             }
         }
@@ -594,7 +594,7 @@ impl CgroupController {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn kill_all(&self) -> Result<(), CgroupError> {
+    pub const fn kill_all(&self) -> Result<(), CgroupError> {
         Err(CgroupError::CgroupV2NotAvailable)
     }
 
@@ -726,8 +726,8 @@ mod tests {
     #[test]
     fn test_io_config() {
         let mut config = IoConfig::new("8:0");
-        config.rbps = 1048576;
-        config.wbps = 524288;
+        config.rbps = 1_048_576;
+        config.wbps = 524_288;
 
         let io_max = config.to_io_max();
         assert!(io_max.contains("8:0"));
@@ -742,5 +742,212 @@ mod tests {
 
         let err = CgroupError::PermissionDenied;
         assert!(err.to_string().contains("Permission denied"));
+    }
+
+    // --- CpuConfig additional tests ---
+
+    #[test]
+    fn test_cpu_config_from_percent_100() {
+        let config = CpuConfig::from_percent(100);
+        assert_eq!(config.quota_us, 100_000);
+        assert_eq!(config.to_cpu_max(), "100000 100000");
+    }
+
+    #[test]
+    fn test_cpu_config_from_percent_1() {
+        let config = CpuConfig::from_percent(1);
+        assert_eq!(config.quota_us, 1_000);
+        assert_eq!(config.period_us, 100_000);
+    }
+
+    #[test]
+    fn test_cpu_config_from_percent_200() {
+        let config = CpuConfig::from_percent(200);
+        assert_eq!(config.quota_us, 200_000);
+    }
+
+    #[test]
+    fn test_cpu_config_unlimited_format() {
+        let config = CpuConfig {
+            quota_us: u64::MAX,
+            period_us: 50_000,
+            weight: 100,
+        };
+        assert_eq!(config.to_cpu_max(), "max 50000");
+    }
+
+    #[test]
+    fn test_cpu_config_limited_format() {
+        let config = CpuConfig {
+            quota_us: 25_000,
+            period_us: 50_000,
+            weight: 200,
+        };
+        assert_eq!(config.to_cpu_max(), "25000 50000");
+    }
+
+    #[test]
+    fn test_cpu_config_weight_default() {
+        let config = CpuConfig::default();
+        assert_eq!(config.weight, 100);
+    }
+
+    #[test]
+    fn test_cpu_config_weight_from_percent() {
+        let config = CpuConfig::from_percent(75);
+        assert_eq!(config.weight, 100);
+    }
+
+    // --- MemoryConfig additional tests ---
+
+    #[test]
+    fn test_memory_config_default_unlimited() {
+        let config = MemoryConfig::default();
+        assert_eq!(config.max, u64::MAX);
+        assert_eq!(config.high, u64::MAX);
+        assert_eq!(config.min, 0);
+        assert!(config.oom_kill);
+    }
+
+    #[test]
+    fn test_memory_config_with_limit_1gb() {
+        let bytes: u64 = 1024 * 1024 * 1024;
+        let config = MemoryConfig::with_limit(bytes);
+        assert_eq!(config.max, bytes);
+        assert!(config.high < bytes);
+        assert!(config.oom_kill);
+    }
+
+    #[test]
+    fn test_memory_config_high_is_90_percent() {
+        let bytes: u64 = 1_000_000;
+        let config = MemoryConfig::with_limit(bytes);
+        let expected = (bytes as f64 * 0.9) as u64;
+        assert_eq!(config.high, expected);
+    }
+
+    #[test]
+    fn test_memory_config_min_zero() {
+        let config = MemoryConfig::with_limit(512 * 1024 * 1024);
+        assert_eq!(config.min, 0);
+    }
+
+    #[test]
+    fn test_memory_config_oom_kill_enabled() {
+        let config = MemoryConfig::with_limit(64 * 1024 * 1024);
+        assert!(config.oom_kill);
+    }
+
+    // --- IoConfig additional tests ---
+
+    #[test]
+    fn test_io_config_new_unlimited() {
+        let config = IoConfig::new("8:0");
+        let io_max = config.to_io_max();
+        assert_eq!(io_max, "8:0");
+    }
+
+    #[test]
+    fn test_io_config_riops_wiops() {
+        let mut config = IoConfig::new("8:16");
+        config.riops = 1000;
+        config.wiops = 500;
+        let io_max = config.to_io_max();
+        assert!(io_max.contains("riops=1000"));
+        assert!(io_max.contains("wiops=500"));
+    }
+
+    #[test]
+    fn test_io_config_all_limits() {
+        let config = IoConfig {
+            device: "8:0".to_string(),
+            rbps: 10_000_000,
+            wbps: 5_000_000,
+            riops: 2000,
+            wiops: 1000,
+        };
+        let io_max = config.to_io_max();
+        assert!(io_max.contains("8:0"));
+        assert!(io_max.contains("rbps=10000000"));
+        assert!(io_max.contains("wbps=5000000"));
+        assert!(io_max.contains("riops=2000"));
+        assert!(io_max.contains("wiops=1000"));
+    }
+
+    #[test]
+    fn test_io_config_device_string() {
+        let config = IoConfig::new("252:0");
+        assert_eq!(config.device, "252:0");
+    }
+
+    #[test]
+    fn test_io_config_only_rbps() {
+        let mut config = IoConfig::new("8:0");
+        config.rbps = 1_048_576;
+        let io_max = config.to_io_max();
+        assert!(io_max.contains("rbps=1048576"));
+        assert!(!io_max.contains("wbps="));
+        assert!(!io_max.contains("riops="));
+        assert!(!io_max.contains("wiops="));
+    }
+
+    #[test]
+    fn test_io_config_rbps_before_wbps_in_output() {
+        let mut config = IoConfig::new("8:0");
+        config.rbps = 100;
+        config.wbps = 200;
+        let io_max = config.to_io_max();
+        let rbps_pos = io_max.find("rbps=").unwrap();
+        let wbps_pos = io_max.find("wbps=").unwrap();
+        assert!(rbps_pos < wbps_pos);
+    }
+
+    // --- CgroupError additional tests ---
+
+    #[test]
+    fn test_cgroup_error_invalid_parameter_display() {
+        let err = CgroupError::InvalidParameter("bad quota".into());
+        assert!(err.to_string().contains("Invalid parameter"));
+        assert!(err.to_string().contains("bad quota"));
+    }
+
+    #[test]
+    fn test_cgroup_error_io_error_display() {
+        let err = CgroupError::IoError("disk full".into());
+        assert!(err.to_string().contains("I/O error"));
+        assert!(err.to_string().contains("disk full"));
+    }
+
+    #[test]
+    fn test_cgroup_error_v2_not_available_display() {
+        let err = CgroupError::CgroupV2NotAvailable;
+        assert!(err.to_string().contains("Cgroup v2"));
+    }
+
+    #[test]
+    fn test_cgroup_error_controller_not_enabled_display() {
+        let err = CgroupError::ControllerNotEnabled("cpu".into());
+        assert!(err.to_string().contains("Controller not enabled"));
+        assert!(err.to_string().contains("cpu"));
+    }
+
+    #[test]
+    fn test_cgroup_error_equality() {
+        assert_eq!(CgroupError::PermissionDenied, CgroupError::PermissionDenied);
+        assert_eq!(
+            CgroupError::CgroupV2NotAvailable,
+            CgroupError::CgroupV2NotAvailable
+        );
+        assert_ne!(
+            CgroupError::PermissionDenied,
+            CgroupError::CgroupV2NotAvailable
+        );
+    }
+
+    #[test]
+    fn test_cgroup_error_not_found_contains_path() {
+        let path = "/sys/fs/cgroup/alice/mycontainer";
+        let err = CgroupError::NotFound(path.into());
+        assert!(err.to_string().contains(path));
     }
 }

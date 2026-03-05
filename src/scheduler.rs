@@ -128,7 +128,7 @@ impl CpuStats {
     #[cfg(feature = "std")]
     #[must_use]
     pub fn from_cpu_stat(content: &str) -> Self {
-        let mut stats = CpuStats::default();
+        let mut stats = Self::default();
 
         for line in content.lines() {
             let mut parts = line.split_whitespace();
@@ -342,14 +342,14 @@ impl DynamicScheduler {
     /// Get current quota
     #[inline(always)]
     #[must_use]
-    pub fn current_quota(&self) -> u64 {
+    pub const fn current_quota(&self) -> u64 {
         self.current_quota_us
     }
 
     /// Get scheduler statistics
     #[inline(always)]
     #[must_use]
-    pub fn stats(&self) -> SchedulerStats {
+    pub const fn stats(&self) -> SchedulerStats {
         SchedulerStats {
             current_quota_us: self.current_quota_us,
             min_quota_us: self.config.min_quota_us,
@@ -496,15 +496,15 @@ mod tests {
 
     #[test]
     fn test_cpu_stats_parse() {
-        let content = r#"usage_usec 123456
+        let content = r"usage_usec 123456
 user_usec 100000
 system_usec 23456
 nr_throttled 5
-throttled_usec 50000"#;
+throttled_usec 50000";
 
         let stats = CpuStats::from_cpu_stat(content);
-        assert_eq!(stats.usage_us, 123456);
-        assert_eq!(stats.user_us, 100000);
+        assert_eq!(stats.usage_us, 123_456);
+        assert_eq!(stats.user_us, 100_000);
         assert_eq!(stats.system_us, 23456);
         assert_eq!(stats.nr_throttled, 5);
         assert_eq!(stats.throttled_us, 50000);
@@ -522,5 +522,201 @@ throttled_usec 50000"#;
                 new_quota_us: 50000
             }
         );
+    }
+
+    // --- SchedulerConfig additional tests ---
+
+    #[test]
+    fn test_scheduler_config_default_target_latency() {
+        let config = SchedulerConfig::default();
+        assert_eq!(config.target_latency_us, 1000);
+    }
+
+    #[test]
+    fn test_scheduler_config_default_tick_interval() {
+        let config = SchedulerConfig::default();
+        assert_eq!(config.tick_interval_ms, 10);
+    }
+
+    #[test]
+    fn test_scheduler_config_default_burst_multiplier() {
+        let config = SchedulerConfig::default();
+        assert!((config.burst_multiplier - 1.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_scheduler_config_default_throttle_multiplier() {
+        let config = SchedulerConfig::default();
+        assert!((config.throttle_multiplier - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_scheduler_config_default_low_util_threshold() {
+        let config = SchedulerConfig::default();
+        assert!((config.low_util_threshold - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_scheduler_config_low_latency_min_quota() {
+        let config = SchedulerConfig::low_latency();
+        assert_eq!(config.min_quota_us, 50_000);
+    }
+
+    #[test]
+    fn test_scheduler_config_low_latency_max_quota() {
+        let config = SchedulerConfig::low_latency();
+        assert_eq!(config.max_quota_us, 100_000);
+    }
+
+    #[test]
+    fn test_scheduler_config_low_latency_burst_multiplier() {
+        let config = SchedulerConfig::low_latency();
+        assert!((config.burst_multiplier - 2.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_scheduler_config_batch() {
+        let config = SchedulerConfig::batch();
+        assert_eq!(config.target_latency_us, 100_000);
+        assert_eq!(config.tick_interval_ms, 100);
+        assert_eq!(config.min_quota_us, 10_000);
+        assert_eq!(config.max_quota_us, 50_000);
+    }
+
+    #[test]
+    fn test_scheduler_config_batch_burst_multiplier() {
+        let config = SchedulerConfig::batch();
+        assert!((config.burst_multiplier - 1.2).abs() < f64::EPSILON);
+    }
+
+    // --- quota_from_percent / percent_from_quota additional tests ---
+
+    #[test]
+    fn test_quota_from_percent_zero() {
+        assert_eq!(quota_from_percent(0, 100_000), 0);
+    }
+
+    #[test]
+    fn test_quota_from_percent_10() {
+        assert_eq!(quota_from_percent(10, 100_000), 10_000);
+    }
+
+    #[test]
+    fn test_percent_from_quota_zero_period() {
+        assert_eq!(percent_from_quota(50_000, 0), 0);
+    }
+
+    #[test]
+    fn test_percent_from_quota_zero_quota() {
+        assert_eq!(percent_from_quota(0, 100_000), 0);
+    }
+
+    #[test]
+    fn test_percent_from_quota_roundtrip() {
+        let period = 100_000_u64;
+        for pct in [10_u32, 25, 50, 75, 100] {
+            let quota = quota_from_percent(pct, period);
+            let back = percent_from_quota(quota, period);
+            assert_eq!(back, pct);
+        }
+    }
+
+    // --- CpuStats additional tests ---
+
+    #[test]
+    fn test_cpu_stats_default_zeros() {
+        let stats = CpuStats::default();
+        assert_eq!(stats.usage_us, 0);
+        assert_eq!(stats.user_us, 0);
+        assert_eq!(stats.system_us, 0);
+        assert_eq!(stats.nr_throttled, 0);
+        assert_eq!(stats.throttled_us, 0);
+    }
+
+    #[test]
+    fn test_cpu_stats_parse_empty() {
+        let stats = CpuStats::from_cpu_stat("");
+        assert_eq!(stats.usage_us, 0);
+        assert_eq!(stats.throttled_us, 0);
+    }
+
+    #[test]
+    fn test_cpu_stats_parse_ignores_unknown_keys() {
+        let content = "unknown_key 999\nusage_usec 42\n";
+        let stats = CpuStats::from_cpu_stat(content);
+        assert_eq!(stats.usage_us, 42);
+    }
+
+    #[test]
+    fn test_cpu_stats_parse_partial() {
+        let content = "usage_usec 1000\nuser_usec 800\n";
+        let stats = CpuStats::from_cpu_stat(content);
+        assert_eq!(stats.usage_us, 1000);
+        assert_eq!(stats.user_us, 800);
+        assert_eq!(stats.system_us, 0);
+    }
+
+    // --- SchedulerDecision additional tests ---
+
+    #[test]
+    fn test_scheduler_decision_adjust_inequality() {
+        let a = SchedulerDecision::Adjust {
+            new_quota_us: 50_000,
+        };
+        let b = SchedulerDecision::Adjust {
+            new_quota_us: 60_000,
+        };
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn test_scheduler_decision_idle_vs_maintain() {
+        assert_ne!(SchedulerDecision::Idle, SchedulerDecision::Maintain);
+    }
+
+    #[test]
+    fn test_scheduler_decision_too_soon_equality() {
+        assert_eq!(SchedulerDecision::TooSoon, SchedulerDecision::TooSoon);
+        assert_ne!(SchedulerDecision::TooSoon, SchedulerDecision::Idle);
+    }
+
+    #[test]
+    fn test_scheduler_decision_copy() {
+        let d = SchedulerDecision::Maintain;
+        let d2 = d;
+        assert_eq!(d, d2);
+    }
+
+    #[test]
+    fn test_scheduler_decision_debug() {
+        let s = format!("{:?}", SchedulerDecision::Adjust { new_quota_us: 1234 });
+        assert!(s.contains("1234"));
+    }
+
+    // --- SchedulerStats tests ---
+
+    #[test]
+    fn test_scheduler_stats_fields() {
+        let stats = SchedulerStats {
+            current_quota_us: 50_000,
+            min_quota_us: 10_000,
+            max_quota_us: 100_000,
+            running: true,
+        };
+        assert_eq!(stats.current_quota_us, 50_000);
+        assert_eq!(stats.min_quota_us, 10_000);
+        assert_eq!(stats.max_quota_us, 100_000);
+        assert!(stats.running);
+    }
+
+    #[test]
+    fn test_scheduler_stats_not_running() {
+        let stats = SchedulerStats {
+            current_quota_us: 0,
+            min_quota_us: 0,
+            max_quota_us: 0,
+            running: false,
+        };
+        assert!(!stats.running);
     }
 }

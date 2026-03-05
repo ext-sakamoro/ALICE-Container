@@ -96,6 +96,15 @@ impl NamespaceFlags {
     }
 }
 
+impl core::ops::BitOr for NamespaceFlags {
+    type Output = Self;
+
+    #[inline]
+    fn bitor(self, rhs: Self) -> Self {
+        self.union(rhs)
+    }
+}
+
 // ============================================================================
 // Namespace Operations
 // ============================================================================
@@ -109,25 +118,25 @@ pub struct Namespaces {
 impl Namespaces {
     /// Create with specified namespace flags
     #[must_use]
-    pub fn new(flags: NamespaceFlags) -> Self {
+    pub const fn new(flags: NamespaceFlags) -> Self {
         Self { flags }
     }
 
     /// Create with container isolation (Mount, PID, UTS, IPC)
     #[must_use]
-    pub fn container() -> Self {
+    pub const fn container() -> Self {
         Self::new(NamespaceFlags::CONTAINER)
     }
 
     /// Create with all namespaces except user
     #[must_use]
-    pub fn all() -> Self {
+    pub const fn all() -> Self {
         Self::new(NamespaceFlags::ALL)
     }
 
     /// Get namespace flags
     #[must_use]
-    pub fn flags(&self) -> NamespaceFlags {
+    pub const fn flags(&self) -> NamespaceFlags {
         self.flags
     }
 
@@ -150,7 +159,7 @@ impl Namespaces {
     ///
     /// Returns an error if the operation fails.
     #[cfg(not(target_os = "linux"))]
-    pub fn unshare(&self) -> Result<(), NamespaceError> {
+    pub const fn unshare(&self) -> Result<(), NamespaceError> {
         Err(NamespaceError::NotSupported)
     }
 
@@ -179,7 +188,7 @@ impl Namespaces {
     ///
     /// Returns an error if the operation fails.
     #[cfg(all(feature = "std", not(target_os = "linux")))]
-    pub fn set_hostname(&self, _hostname: &str) -> Result<(), NamespaceError> {
+    pub const fn set_hostname(&self, _hostname: &str) -> Result<(), NamespaceError> {
         Err(NamespaceError::NotSupported)
     }
 }
@@ -200,7 +209,7 @@ pub struct CloneFlags {
 impl CloneFlags {
     /// Create clone flags for container
     #[must_use]
-    pub fn container() -> Self {
+    pub const fn container() -> Self {
         Self {
             namespaces: NamespaceFlags::CONTAINER,
             extra: 0,
@@ -209,7 +218,7 @@ impl CloneFlags {
 
     /// Get combined flags
     #[must_use]
-    pub fn bits(&self) -> c_int {
+    pub const fn bits(&self) -> c_int {
         self.namespaces.bits() | self.extra
     }
 }
@@ -349,7 +358,7 @@ pub fn pivot_root(new_root: &Path, put_old: &Path) -> Result<(), NamespaceError>
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn pivot_root(_new_root: &Path, _put_old: &Path) -> Result<(), NamespaceError> {
+pub const fn pivot_root(_new_root: &Path, _put_old: &Path) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
 }
 
@@ -378,7 +387,7 @@ pub fn umount(target: &Path) -> Result<(), NamespaceError> {
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn umount(_target: &Path) -> Result<(), NamespaceError> {
+pub const fn umount(_target: &Path) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
 }
 
@@ -407,7 +416,7 @@ pub fn umount2(target: &Path, flags: c_int) -> Result<(), NamespaceError> {
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn umount2(_target: &Path, _flags: c_int) -> Result<(), NamespaceError> {
+pub const fn umount2(_target: &Path, _flags: c_int) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
 }
 
@@ -456,25 +465,25 @@ impl NamespaceError {
     /// Create error from errno (non-Linux stub)
     #[cfg(not(target_os = "linux"))]
     #[allow(dead_code)]
-    fn from_errno() -> Self {
-        NamespaceError::NotSupported
+    const fn from_errno() -> Self {
+        Self::NotSupported
     }
 }
 
 impl core::fmt::Display for NamespaceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            NamespaceError::PermissionDenied => {
+            Self::PermissionDenied => {
                 write!(f, "Permission denied (need CAP_SYS_ADMIN)")
             }
-            NamespaceError::InvalidArgument => write!(f, "Invalid argument"),
-            NamespaceError::OutOfMemory => write!(f, "Out of memory"),
-            NamespaceError::NotInNamespace(ns) => {
+            Self::InvalidArgument => write!(f, "Invalid argument"),
+            Self::OutOfMemory => write!(f, "Out of memory"),
+            Self::NotInNamespace(ns) => {
                 write!(f, "Not in {ns} namespace")
             }
-            NamespaceError::InvalidPath => write!(f, "Invalid path"),
-            NamespaceError::NotSupported => write!(f, "Operation not supported on this platform"),
-            NamespaceError::OsError(e) => write!(f, "OS error: {e}"),
+            Self::InvalidPath => write!(f, "Invalid path"),
+            Self::NotSupported => write!(f, "Operation not supported on this platform"),
+            Self::OsError(e) => write!(f, "OS error: {e}"),
         }
     }
 }
@@ -497,7 +506,7 @@ pub struct IdMapping {
 impl IdMapping {
     /// Create a simple 1:1 mapping
     #[must_use]
-    pub fn identity(id: u32) -> Self {
+    pub const fn identity(id: u32) -> Self {
         Self {
             inner_id: id,
             outer_id: id,
@@ -507,7 +516,7 @@ impl IdMapping {
 
     /// Create mapping for root inside namespace to current user outside
     #[must_use]
-    pub fn root_to_user(outer_uid: u32) -> Self {
+    pub const fn root_to_user(outer_uid: u32) -> Self {
         Self {
             inner_id: 0,
             outer_id: outer_uid,
@@ -546,7 +555,7 @@ pub fn write_uid_map(pid: u32, mapping: &IdMapping) -> Result<(), NamespaceError
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn write_uid_map(_pid: u32, _mapping: &IdMapping) -> Result<(), NamespaceError> {
+pub const fn write_uid_map(_pid: u32, _mapping: &IdMapping) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
 }
 
@@ -580,7 +589,7 @@ pub fn write_gid_map(pid: u32, mapping: &IdMapping) -> Result<(), NamespaceError
 ///
 /// Returns an error if the operation fails.
 #[cfg(all(feature = "std", not(target_os = "linux")))]
-pub fn write_gid_map(_pid: u32, _mapping: &IdMapping) -> Result<(), NamespaceError> {
+pub const fn write_gid_map(_pid: u32, _mapping: &IdMapping) -> Result<(), NamespaceError> {
     Err(NamespaceError::NotSupported)
 }
 
@@ -632,5 +641,212 @@ mod tests {
 
         let err = NamespaceError::NotSupported;
         assert!(err.to_string().contains("not supported"));
+    }
+
+    // --- NamespaceFlags additional tests ---
+
+    #[test]
+    fn test_namespace_flags_bits_roundtrip() {
+        let flags = NamespaceFlags::NEWNS;
+        let bits = flags.bits();
+        let flags2 = NamespaceFlags::from_bits(bits);
+        assert_eq!(flags, flags2);
+    }
+
+    #[test]
+    fn test_namespace_flags_all_contains_newns() {
+        assert!(NamespaceFlags::ALL.contains(NamespaceFlags::NEWNS));
+    }
+
+    #[test]
+    fn test_namespace_flags_all_contains_newpid() {
+        assert!(NamespaceFlags::ALL.contains(NamespaceFlags::NEWPID));
+    }
+
+    #[test]
+    fn test_namespace_flags_all_contains_newnet() {
+        assert!(NamespaceFlags::ALL.contains(NamespaceFlags::NEWNET));
+    }
+
+    #[test]
+    fn test_namespace_flags_all_contains_newuts() {
+        assert!(NamespaceFlags::ALL.contains(NamespaceFlags::NEWUTS));
+    }
+
+    #[test]
+    fn test_namespace_flags_all_contains_newipc() {
+        assert!(NamespaceFlags::ALL.contains(NamespaceFlags::NEWIPC));
+    }
+
+    #[test]
+    fn test_namespace_flags_container_does_not_contain_newnet() {
+        assert!(!NamespaceFlags::CONTAINER.contains(NamespaceFlags::NEWNET));
+    }
+
+    #[test]
+    fn test_namespace_flags_container_does_not_contain_newuser() {
+        assert!(!NamespaceFlags::CONTAINER.contains(NamespaceFlags::NEWUSER));
+    }
+
+    #[test]
+    fn test_namespace_flags_bitor() {
+        let flags = NamespaceFlags::NEWNS | NamespaceFlags::NEWNET;
+        assert!(flags.contains(NamespaceFlags::NEWNS));
+        assert!(flags.contains(NamespaceFlags::NEWNET));
+        assert!(!flags.contains(NamespaceFlags::NEWPID));
+    }
+
+    #[test]
+    fn test_namespace_flags_equality() {
+        assert_eq!(NamespaceFlags::NEWNS, NamespaceFlags::NEWNS);
+        assert_ne!(NamespaceFlags::NEWNS, NamespaceFlags::NEWPID);
+    }
+
+    #[test]
+    fn test_namespace_flags_copy() {
+        let a = NamespaceFlags::NEWUTS;
+        let b = a;
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_namespace_flags_newcgroup_value() {
+        // NEWCGROUP must be a non-zero, distinct bit
+        assert_ne!(NamespaceFlags::NEWCGROUP.bits(), 0);
+        assert!(!NamespaceFlags::CONTAINER.contains(NamespaceFlags::NEWCGROUP));
+    }
+
+    // --- Namespaces struct tests ---
+
+    #[test]
+    fn test_namespaces_new() {
+        let ns = Namespaces::new(NamespaceFlags::NEWNS);
+        assert_eq!(ns.flags(), NamespaceFlags::NEWNS);
+    }
+
+    #[test]
+    fn test_namespaces_container_preset() {
+        let ns = Namespaces::container();
+        assert!(ns.flags().contains(NamespaceFlags::NEWNS));
+        assert!(ns.flags().contains(NamespaceFlags::NEWPID));
+        assert!(!ns.flags().contains(NamespaceFlags::NEWNET));
+    }
+
+    #[test]
+    fn test_namespaces_all_preset() {
+        let ns = Namespaces::all();
+        assert!(ns.flags().contains(NamespaceFlags::NEWNS));
+        assert!(ns.flags().contains(NamespaceFlags::NEWNET));
+        assert!(ns.flags().contains(NamespaceFlags::NEWPID));
+    }
+
+    // --- CloneFlags additional tests ---
+
+    #[test]
+    fn test_clone_flags_bits_nonzero() {
+        let flags = CloneFlags::container();
+        assert_ne!(flags.bits(), 0);
+    }
+
+    #[test]
+    fn test_clone_flags_extra_default_zero() {
+        let flags = CloneFlags::container();
+        assert_eq!(flags.extra, 0);
+    }
+
+    #[test]
+    fn test_clone_flags_combined_bits() {
+        let flags = CloneFlags {
+            namespaces: NamespaceFlags::NEWNS | NamespaceFlags::NEWPID,
+            extra: 0x100,
+        };
+        let bits = flags.bits();
+        assert!(bits & NamespaceFlags::NEWNS.bits() != 0);
+        assert!(bits & NamespaceFlags::NEWPID.bits() != 0);
+        assert!(bits & 0x100 != 0);
+    }
+
+    // --- IdMapping additional tests ---
+
+    #[test]
+    fn test_id_mapping_identity() {
+        let mapping = IdMapping::identity(500);
+        assert_eq!(mapping.inner_id, 500);
+        assert_eq!(mapping.outer_id, 500);
+        assert_eq!(mapping.count, 1);
+        assert_eq!(mapping.to_map_string(), "500 500 1");
+    }
+
+    #[test]
+    fn test_id_mapping_root_to_user_format() {
+        let mapping = IdMapping::root_to_user(1000);
+        assert_eq!(mapping.to_map_string(), "0 1000 1");
+    }
+
+    #[test]
+    fn test_id_mapping_count() {
+        let mapping = IdMapping {
+            inner_id: 0,
+            outer_id: 1000,
+            count: 65536,
+        };
+        assert_eq!(mapping.to_map_string(), "0 1000 65536");
+    }
+
+    #[test]
+    fn test_id_mapping_copy() {
+        let m = IdMapping::identity(0);
+        let m2 = m;
+        assert_eq!(m.inner_id, m2.inner_id);
+    }
+
+    // --- NamespaceError additional tests ---
+
+    #[test]
+    fn test_namespace_error_invalid_argument_display() {
+        let err = NamespaceError::InvalidArgument;
+        assert!(err.to_string().contains("Invalid argument"));
+    }
+
+    #[test]
+    fn test_namespace_error_out_of_memory_display() {
+        let err = NamespaceError::OutOfMemory;
+        assert!(err.to_string().contains("memory") || err.to_string().contains("memory"));
+    }
+
+    #[test]
+    fn test_namespace_error_invalid_path_display() {
+        let err = NamespaceError::InvalidPath;
+        assert!(err.to_string().contains("Invalid path") || err.to_string().contains("path"));
+    }
+
+    #[test]
+    fn test_namespace_error_os_error_display() {
+        let err = NamespaceError::OsError(13);
+        assert!(err.to_string().contains("13"));
+    }
+
+    #[test]
+    fn test_namespace_error_equality() {
+        assert_eq!(NamespaceError::NotSupported, NamespaceError::NotSupported);
+        assert_eq!(
+            NamespaceError::PermissionDenied,
+            NamespaceError::PermissionDenied
+        );
+        assert_ne!(
+            NamespaceError::PermissionDenied,
+            NamespaceError::NotSupported
+        );
+    }
+
+    #[test]
+    fn test_namespace_error_os_error_equality() {
+        assert_eq!(NamespaceError::OsError(1), NamespaceError::OsError(1));
+        assert_ne!(NamespaceError::OsError(1), NamespaceError::OsError(2));
+    }
+
+    #[test]
+    fn test_mnt_detach_value() {
+        assert_eq!(MNT_DETACH, 2);
     }
 }

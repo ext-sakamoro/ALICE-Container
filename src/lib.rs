@@ -190,4 +190,26 @@ mod tests {
         assert_eq!(DEFAULT_CPU_PERIOD_US, 100_000);
         assert_eq!(DEFAULT_MEMORY_MAX, 1024 * 1024 * 1024);
     }
+
+    #[test]
+    fn test_cgroup_root_constant() {
+        assert_eq!(CGROUP_ROOT, "/sys/fs/cgroup");
+    }
+
+    #[test]
+    fn test_alice_cgroup_constant() {
+        assert!(ALICE_CGROUP.starts_with(CGROUP_ROOT));
+        assert!(ALICE_CGROUP.ends_with("/alice"));
+    }
+
+    #[test]
+    fn test_default_cpu_period_is_100ms() {
+        // 100ms = 100_000 us
+        assert_eq!(DEFAULT_CPU_PERIOD_US, 100_000);
+    }
+
+    #[test]
+    fn test_default_memory_max_is_1gb() {
+        assert_eq!(DEFAULT_MEMORY_MAX, 1_073_741_824);
+    }
 }

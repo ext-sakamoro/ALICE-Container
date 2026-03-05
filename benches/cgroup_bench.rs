@@ -4,21 +4,21 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 fn bench_container_config_build(c: &mut Criterion) {
     c.bench_function("container_config_build", |b| {
         b.iter(|| {
-            ContainerConfig::builder()
+            let _ = ContainerConfig::builder()
                 .cpu_quota_us(black_box(50_000))
                 .memory_max(black_box(256 * 1024 * 1024))
-                .build()
-        })
+                .build();
+        });
     });
 }
 
 fn bench_scheduler_config(c: &mut Criterion) {
     c.bench_function("scheduler_config_low_latency", |b| {
-        b.iter(|| black_box(SchedulerConfig::low_latency()))
+        b.iter(|| black_box(SchedulerConfig::low_latency()));
     });
 
     c.bench_function("scheduler_config_batch", |b| {
-        b.iter(|| black_box(SchedulerConfig::batch()))
+        b.iter(|| black_box(SchedulerConfig::batch()));
     });
 }
 
@@ -29,8 +29,8 @@ fn bench_namespace_flags(c: &mut Criterion) {
                 | NamespaceFlags::NEWPID
                 | NamespaceFlags::NEWUTS
                 | NamespaceFlags::NEWIPC;
-            black_box(flags)
-        })
+            black_box(flags);
+        });
     });
 }
 
@@ -61,10 +61,10 @@ fn bench_cgroup_write_cpu(c: &mut Criterion) {
 }
 
 #[cfg(not(target_os = "linux"))]
-fn bench_cgroup_create_destroy(_c: &mut Criterion) {}
+const fn bench_cgroup_create_destroy(_c: &mut Criterion) {}
 
 #[cfg(not(target_os = "linux"))]
-fn bench_cgroup_write_cpu(_c: &mut Criterion) {}
+const fn bench_cgroup_write_cpu(_c: &mut Criterion) {}
 
 criterion_group!(
     benches,

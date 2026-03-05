@@ -78,10 +78,10 @@ pub enum ContainerState {
 impl fmt::Display for ContainerState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ContainerState::Created => write!(f, "created"),
-            ContainerState::Running => write!(f, "running"),
-            ContainerState::Paused => write!(f, "paused"),
-            ContainerState::Stopped => write!(f, "stopped"),
+            Self::Created => write!(f, "created"),
+            Self::Running => write!(f, "running"),
+            Self::Paused => write!(f, "paused"),
+            Self::Stopped => write!(f, "stopped"),
         }
     }
 }
@@ -191,7 +191,7 @@ impl ContainerConfigBuilder {
 
     /// Set CPU quota in microseconds
     #[must_use]
-    pub fn cpu_quota_us(mut self, quota: u64) -> Self {
+    pub const fn cpu_quota_us(mut self, quota: u64) -> Self {
         self.config.cpu.quota_us = quota;
         self
     }
@@ -212,7 +212,7 @@ impl ContainerConfigBuilder {
 
     /// Enable network namespace
     #[must_use]
-    pub fn with_network(mut self) -> Self {
+    pub const fn with_network(mut self) -> Self {
         self.config.network = true;
         self.config.namespaces = self.config.namespaces.union(NamespaceFlags::NEWNET);
         self
@@ -220,7 +220,7 @@ impl ContainerConfigBuilder {
 
     /// Set read-only root filesystem
     #[must_use]
-    pub fn readonly(mut self) -> Self {
+    pub const fn readonly(mut self) -> Self {
         self.config.readonly_rootfs = true;
         self
     }
@@ -267,28 +267,28 @@ pub enum ContainerError {
 impl fmt::Display for ContainerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ContainerError::Cgroup(e) => write!(f, "Cgroup error: {e}"),
-            ContainerError::Namespace(e) => write!(f, "Namespace error: {e}"),
-            ContainerError::InvalidState { current, operation } => {
+            Self::Cgroup(e) => write!(f, "Cgroup error: {e}"),
+            Self::Namespace(e) => write!(f, "Namespace error: {e}"),
+            Self::InvalidState { current, operation } => {
                 write!(f, "Cannot {operation} container in {current} state")
             }
-            ContainerError::ProcessError(msg) => write!(f, "Process error: {msg}"),
-            ContainerError::ConfigError(msg) => write!(f, "Config error: {msg}"),
-            ContainerError::IoError(msg) => write!(f, "I/O error: {msg}"),
-            ContainerError::NotFound(id) => write!(f, "Container not found: {id}"),
+            Self::ProcessError(msg) => write!(f, "Process error: {msg}"),
+            Self::ConfigError(msg) => write!(f, "Config error: {msg}"),
+            Self::IoError(msg) => write!(f, "I/O error: {msg}"),
+            Self::NotFound(id) => write!(f, "Container not found: {id}"),
         }
     }
 }
 
 impl From<CgroupError> for ContainerError {
     fn from(e: CgroupError) -> Self {
-        ContainerError::Cgroup(e)
+        Self::Cgroup(e)
     }
 }
 
 impl From<NamespaceError> for ContainerError {
     fn from(e: NamespaceError) -> Self {
-        ContainerError::Namespace(e)
+        Self::Namespace(e)
     }
 }
 
@@ -611,19 +611,19 @@ impl Container {
 
     /// Get current state
     #[must_use]
-    pub fn state(&self) -> ContainerState {
+    pub const fn state(&self) -> ContainerState {
         self.state
     }
 
     /// Get init process PID
     #[must_use]
-    pub fn pid(&self) -> Option<u32> {
+    pub const fn pid(&self) -> Option<u32> {
         self.init_pid
     }
 
     /// Get configuration
     #[must_use]
-    pub fn config(&self) -> &ContainerConfig {
+    pub const fn config(&self) -> &ContainerConfig {
         &self.config
     }
 
@@ -751,5 +751,218 @@ mod tests {
         };
         assert!(err.to_string().contains("stopped"));
         assert!(err.to_string().contains("exec"));
+    }
+
+    // --- ContainerState additional tests ---
+
+    #[test]
+    fn test_container_state_equality() {
+        assert_eq!(ContainerState::Created, ContainerState::Created);
+        assert_eq!(ContainerState::Running, ContainerState::Running);
+        assert_ne!(ContainerState::Created, ContainerState::Running);
+        assert_ne!(ContainerState::Paused, ContainerState::Stopped);
+    }
+
+    #[test]
+    fn test_container_state_copy() {
+        let state = ContainerState::Running;
+        let state2 = state;
+        assert_eq!(state, state2);
+    }
+
+    #[test]
+    fn test_container_state_debug() {
+        let s = format!("{:?}", ContainerState::Created);
+        assert!(s.contains("Created"));
+        let s = format!("{:?}", ContainerState::Paused);
+        assert!(s.contains("Paused"));
+    }
+
+    // --- ContainerConfig builder additional tests ---
+
+    #[test]
+    fn test_container_config_default_hostname() {
+        let config = ContainerConfig::default();
+        assert_eq!(config.hostname, "container");
+    }
+
+    #[test]
+    fn test_container_config_default_rootfs() {
+        let config = ContainerConfig::default();
+        assert_eq!(config.rootfs.to_str().unwrap(), "/");
+    }
+
+    #[test]
+    fn test_container_config_default_no_network() {
+        let config = ContainerConfig::default();
+        assert!(!config.network);
+    }
+
+    #[test]
+    fn test_container_config_default_not_readonly() {
+        let config = ContainerConfig::default();
+        assert!(!config.readonly_rootfs);
+    }
+
+    #[test]
+    fn test_container_config_default_has_path_env() {
+        let config = ContainerConfig::default();
+        let has_path = config.env.iter().any(|(k, _)| k == "PATH");
+        assert!(has_path);
+    }
+
+    #[test]
+    fn test_container_config_builder_rootfs() {
+        let config = ContainerConfig::builder().rootfs("/tmp").build();
+        assert_eq!(config.rootfs.to_str().unwrap(), "/tmp");
+    }
+
+    #[test]
+    fn test_container_config_builder_workdir() {
+        let config = ContainerConfig::builder().workdir("/app").build();
+        assert_eq!(config.workdir.to_str().unwrap(), "/app");
+    }
+
+    #[test]
+    fn test_container_config_builder_env_accumulates() {
+        let config = ContainerConfig::builder()
+            .env("FOO", "1")
+            .env("BAR", "2")
+            .build();
+        let foo = config.env.iter().find(|(k, _)| k == "FOO");
+        let bar = config.env.iter().find(|(k, _)| k == "BAR");
+        assert!(foo.is_some());
+        assert!(bar.is_some());
+        assert_eq!(foo.unwrap().1, "1");
+        assert_eq!(bar.unwrap().1, "2");
+    }
+
+    #[test]
+    fn test_container_config_builder_readonly() {
+        let config = ContainerConfig::builder().readonly().build();
+        assert!(config.readonly_rootfs);
+    }
+
+    #[test]
+    fn test_container_config_builder_cpu_quota_us() {
+        let config = ContainerConfig::builder().cpu_quota_us(75_000).build();
+        assert_eq!(config.cpu.quota_us, 75_000);
+    }
+
+    #[test]
+    fn test_container_config_builder_memory_max_sets_high() {
+        let bytes = 128 * 1024 * 1024_u64;
+        let config = ContainerConfig::builder().memory_max(bytes).build();
+        assert_eq!(config.memory.max, bytes);
+        // high = 90% of max
+        let expected_high = (bytes as f64 * 0.9) as u64;
+        assert_eq!(config.memory.high, expected_high);
+    }
+
+    #[test]
+    fn test_container_config_builder_default() {
+        let b1 = ContainerConfigBuilder::new();
+        let b2 = ContainerConfigBuilder::default();
+        let c1 = b1.build();
+        let c2 = b2.build();
+        assert_eq!(c1.hostname, c2.hostname);
+        assert_eq!(c1.network, c2.network);
+    }
+
+    // --- ContainerError additional tests ---
+
+    #[test]
+    fn test_container_error_process_error_display() {
+        let err = ContainerError::ProcessError("fork failed".into());
+        assert!(err.to_string().contains("fork failed"));
+    }
+
+    #[test]
+    fn test_container_error_config_error_display() {
+        let err = ContainerError::ConfigError("empty command".into());
+        assert!(err.to_string().contains("Config error"));
+        assert!(err.to_string().contains("empty command"));
+    }
+
+    #[test]
+    fn test_container_error_io_error_display() {
+        let err = ContainerError::IoError("write failed".into());
+        assert!(err.to_string().contains("I/O error"));
+    }
+
+    #[test]
+    fn test_container_error_not_found_display() {
+        let err = ContainerError::NotFound("abc123".into());
+        assert!(err.to_string().contains("abc123"));
+    }
+
+    #[test]
+    fn test_container_error_from_cgroup_error() {
+        let cgroup_err = CgroupError::PermissionDenied;
+        let err: ContainerError = cgroup_err.into();
+        assert!(err.to_string().contains("Cgroup error"));
+    }
+
+    #[test]
+    fn test_container_error_from_namespace_error() {
+        use crate::namespace::NamespaceError;
+        let ns_err = NamespaceError::NotSupported;
+        let err: ContainerError = ns_err.into();
+        assert!(err.to_string().contains("Namespace error"));
+    }
+
+    #[test]
+    fn test_container_error_invalid_state_pause_on_stopped() {
+        let err = ContainerError::InvalidState {
+            current: ContainerState::Stopped,
+            operation: "pause",
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("pause"));
+        assert!(msg.contains("stopped"));
+    }
+
+    // --- ContainerInfo tests ---
+
+    #[test]
+    fn test_container_info_fields() {
+        let info = ContainerInfo {
+            id: "test-123".to_string(),
+            state: ContainerState::Running,
+            pid: Some(42),
+            memory_usage: 1024,
+            cpu_usage: 5000,
+        };
+        assert_eq!(info.id, "test-123");
+        assert_eq!(info.state, ContainerState::Running);
+        assert_eq!(info.pid, Some(42));
+        assert_eq!(info.memory_usage, 1024);
+        assert_eq!(info.cpu_usage, 5000);
+    }
+
+    #[test]
+    fn test_container_info_no_pid() {
+        let info = ContainerInfo {
+            id: "stopped-c".to_string(),
+            state: ContainerState::Stopped,
+            pid: None,
+            memory_usage: 0,
+            cpu_usage: 0,
+        };
+        assert!(info.pid.is_none());
+    }
+
+    #[test]
+    fn test_container_info_clone() {
+        let info = ContainerInfo {
+            id: "clone-test".to_string(),
+            state: ContainerState::Created,
+            pid: None,
+            memory_usage: 0,
+            cpu_usage: 0,
+        };
+        let info2 = info.clone();
+        assert_eq!(info.id, info2.id);
+        assert_eq!(info.state, info2.state);
     }
 }
