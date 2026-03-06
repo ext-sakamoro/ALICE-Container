@@ -97,8 +97,11 @@
 pub mod cgroup;
 pub mod container;
 pub mod namespace;
+pub mod network;
+pub mod oci;
 pub mod rootfs;
 pub mod scheduler;
+pub mod seccomp;
 
 // C-ABI FFI for Unity/UE5
 #[cfg(feature = "ffi")]
@@ -131,8 +134,11 @@ pub mod prelude {
     pub use crate::cgroup::{CgroupController, CgroupError, CpuConfig, IoConfig, MemoryConfig};
     pub use crate::container::{Container, ContainerConfig, ContainerError, ContainerState};
     pub use crate::namespace::{pivot_root, NamespaceFlags, Namespaces};
+    pub use crate::network::{Bridge, NetworkConfig, NetworkError, VethPair};
+    pub use crate::oci::{OciLinux, OciProcess, OciRoot, OciSpec};
     pub use crate::rootfs::{mount_dev, mount_proc, RootFs};
     pub use crate::scheduler::{DynamicScheduler, SchedulerConfig};
+    pub use crate::seccomp::{AppArmorProfile, SeccompAction, SeccompProfile, SeccompRule};
 
     // io_uring exports
     #[cfg(feature = "io_uring")]
