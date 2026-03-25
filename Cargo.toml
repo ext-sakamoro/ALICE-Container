@@ -2,7 +2,7 @@
 name = "alice-container"
 version = "0.2.1"
 edition = "2021"
-authors = ["ALICE Project"]
+authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
 description = "Minimal container runtime with direct cgroup v2 and namespace control"
 license = "AGPL-3.0"
 repository = "https://github.com/alice-project/alice-container"
