@@ -102,6 +102,11 @@ pub mod oci;
 pub mod rootfs;
 pub mod scheduler;
 pub mod seccomp;
+pub mod signed_state_change;
+
+pub use signed_state_change::{
+    ContainerEventKind, SignedStateChange, StateChangeRecord, StateChangeTrail,
+};
 
 // C-ABI FFI for Unity/UE5
 #[cfg(feature = "ffi")]

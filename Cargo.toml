@@ -1,6 +1,6 @@
 [package]
 name = "alice-container"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
 description = "Minimal container runtime with direct cgroup v2 and namespace control"
@@ -37,6 +37,7 @@ sync = ["std"]
 
 [dependencies]
 libc = "0.2"
+alice-blockchain = { path = "../ALICE-Blockchain" }
 alice-analytics = { path = "../ALICE-Analytics", optional = true, default-features = false, features = ["std"] }
 alice-db = { path = "../ALICE-DB", optional = true, default-features = false }
 alice-crypto = { path = "../ALICE-Crypto", optional = true, default-features = false, features = ["std"] }
