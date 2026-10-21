@@ -37,7 +37,7 @@ sync = ["std"]
 
 [dependencies]
 libc = "0.2"
-alice-blockchain = { path = "../ALICE-Blockchain" }
+alice-sign = { version = "0.1", git = "https://github.com/ext-sakamoro/ALICE-Sign", rev = "5420e71fbbf47dd1202b6abcb3c885ef3aa176ca" }
 alice-analytics = { path = "../ALICE-Analytics", optional = true, default-features = false, features = ["std"] }
 alice-db = { path = "../ALICE-DB", optional = true, default-features = false }
 alice-crypto = { path = "../ALICE-Crypto", optional = true, default-features = false, features = ["std"] }

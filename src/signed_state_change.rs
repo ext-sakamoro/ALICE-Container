@@ -23,7 +23,7 @@
 //! - **`NIST SP 800-190`** — application container security guide,
 //!   `§4.1` runtime monitoring recommendations.
 //!
-//! Cryptographic primitives are provided by `alice-blockchain` (`Ed25519`).
+//! Cryptographic primitives are provided by `alice-sign` (`Ed25519`).
 
 #![allow(
     clippy::doc_markdown,
@@ -33,7 +33,7 @@
     clippy::cast_possible_truncation
 )]
 
-use alice_blockchain::signature::{KeyPair, PublicKey, Signature};
+use alice_sign::signature::{KeyPair, PublicKey, Signature};
 
 // ---------------------------------------------------------------------------
 // ContainerEventKind
