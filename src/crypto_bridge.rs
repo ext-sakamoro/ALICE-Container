@@ -89,7 +89,7 @@ mod tests {
     fn test_get_by_name() {
         let mut store = ContainerSecretStore::new(test_key());
         store.seal_secret("API_KEY", b"sk-12345").unwrap();
-        store.seal_secret("DB_HOST", b"10.0.0.1").unwrap();
+        store.seal_secret("DB_HOST", b"198.51.100.1").unwrap();
         let val = store.get_secret("API_KEY").unwrap();
         assert_eq!(val, b"sk-12345");
     }
