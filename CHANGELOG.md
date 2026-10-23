@@ -4,6 +4,11 @@ All notable changes to ALICE-Container will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- CI: `security-audit.yml` を追加 `.github/alice-siblings` に固定した実物の sibling (Analytics / Crypto / DB / Zip) と毎回新しい解決で `cargo audit` と `cargo deny --all-features check all` を走らせ、解決と deny の graph がこの crate と path の sibling を全て含むこと (0 件は失敗) を検査する 週次は日曜 02:29 UTC
+- 解消に依存の更新が要る勧告は `scripts/advisory_holds.toml` の期限付きの保留 (2026-11-14 まで) とし、`scripts/advisory_hold_guard.py` が版と依存元の一致と期限を検査する: rkyv 0.7.46 (RUSTSEC-2026-0235) と bincode 1.3.3 (unmaintained)、どちらも alice-db 経由 それ以外の勧告は保留せず失敗する
+- `deny.toml`: この crate と alice-crypto / alice-db の AGPL 側を crate 単位の exception で許可、alice-crypto が固定 commit で取る ALICE-Sign の git source を許可
+
 ### Added
 - CI: `Test (public siblings)` job 公開の path 依存 (ALICE-Analytics / ALICE-Crypto / ALICE-DB / ALICE-Zip) を固定の commit で隣に checkout し、`cargo test --features ffi,full,sync` を走らせる 通った試験が 239 件未満か、失敗した試験が 1 件でもあれば失敗 (`set -o pipefail` で cargo の終了状態も見る) 公開でない依存は checkout できないので失敗する `ci/**` の push でも走る `scripts/preflight.sh` は生成し直して同じ step を持つ
 

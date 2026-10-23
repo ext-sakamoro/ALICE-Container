@@ -1,0 +1,6 @@
+# cargo audit reads this file. The ignored ids are the dated vulnerability holds in
+# scripts/advisory_holds.toml, kept exact by scripts/advisory_hold_guard.py
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0235",
+]
