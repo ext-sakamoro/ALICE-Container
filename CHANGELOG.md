@@ -4,6 +4,9 @@ All notable changes to ALICE-Container will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- CI: `Test (public siblings)` job は sibling を workflow に書いた commit でなく `.github/alice-siblings` の固定 (security-audit と同じ) で checkout する 固定は各 sibling の現在の main (Analytics 79b5b4a / Crypto 31d525a / DB b3b8bd0 / Zip bf4cefa) に進め、`cargo test --features ffi,full,sync` は 239 passed で `MIN_PASSED` と同じ
+
 ### Security
 - CI: `security-audit.yml` を追加 `.github/alice-siblings` に固定した実物の sibling (Analytics / Crypto / DB / Zip) と毎回新しい解決で `cargo audit` と `cargo deny --all-features check all` を走らせ、解決と deny の graph がこの crate と path の sibling を全て含むこと (0 件は失敗) を検査する 週次は日曜 02:29 UTC
 - 解消に依存の更新が要る勧告は `scripts/advisory_holds.toml` の期限付きの保留 (2026-11-14 まで) とし、`scripts/advisory_hold_guard.py` が版と依存元の一致と期限を検査する: rkyv 0.7.46 (RUSTSEC-2026-0235) と bincode 1.3.3 (unmaintained)、どちらも alice-db 経由 それ以外の勧告は保留せず失敗する

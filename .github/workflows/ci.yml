@@ -41,31 +41,15 @@ jobs:
       MIN_PASSED: "239"
     steps:
       # cargo reads the manifest of every path dependency, optional ones included, so
-      # each sibling is checked out next to this repository at a fixed commit with the
-      # workflow's own token: a sibling that is not public cannot be checked out
+      # each sibling is checked out next to this repository at the commit pinned in
+      # .github/alice-siblings (the same pins the security-audit workflow resolves against)
       - uses: actions/checkout@v5
         with:
           path: ALICE-Container
-      - uses: actions/checkout@v5
+      - name: Check out the pinned ALICE-* siblings
+        uses: ./ALICE-Container/.github/actions/alice-siblings
         with:
-          repository: ext-sakamoro/ALICE-Analytics
-          ref: 2c2f73c214f94b5db503d71d9ebb47db8fee3413
-          path: ALICE-Analytics
-      - uses: actions/checkout@v5
-        with:
-          repository: ext-sakamoro/ALICE-Crypto
-          ref: c0b23db81ef048c3d3821a2eeec8cc54531f10af
-          path: ALICE-Crypto
-      - uses: actions/checkout@v5
-        with:
-          repository: ext-sakamoro/ALICE-DB
-          ref: 7e06aa990b124ee1ef2d9a9a462a43399c5e8522
-          path: ALICE-DB
-      - uses: actions/checkout@v5
-        with:
-          repository: ext-sakamoro/ALICE-Zip
-          ref: a59ba9c0bd511f036180a6f4092c4b99a286567c
-          path: ALICE-Zip
+          repo-dir: ALICE-Container
       - uses: dtolnay/rust-toolchain@stable
       - name: Test (lib, integration, doctests)
         working-directory: ALICE-Container
