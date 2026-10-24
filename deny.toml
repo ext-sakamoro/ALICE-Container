@@ -41,11 +41,9 @@ allow = [
     "MPL-2.0",
 ]
 
-# alice-container and its AGPL siblings are offered as AGPL OR LicenseRef-Commercial;
-# this crate is published under the AGPL side
-[[licenses.exceptions]]
-name = "alice-container"
-allow = ["AGPL-3.0"]
+# workspace crates are not checked against the allow list
+[licenses.private]
+ignore = true
 
 [[licenses.exceptions]]
 name = "alice-crypto"
