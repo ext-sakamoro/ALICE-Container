@@ -3,7 +3,8 @@
 //! Container resource usage metrics: unique containers (HLL),
 //! CPU/memory utilization quantiles (DDSketch), scheduling anomalies (MAD).
 
-use alice_analytics::prelude::*;
+use alice_analytics::anomaly::MadDetector;
+use alice_analytics::sketch::{CountMinSketch, DDSketch, HyperLogLog};
 
 /// Container resource metrics collector.
 pub struct ContainerMetrics {

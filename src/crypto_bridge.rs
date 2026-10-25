@@ -4,7 +4,7 @@
 //!
 //! Author: Moroya Sakamoto
 
-use alice_crypto::{blake3_hash, open, seal, Hash, Key};
+use alice_crypto::{hash, open, seal, Hash, Key};
 
 /// A sealed (encrypted) container secret
 #[derive(Debug, Clone)]
@@ -36,13 +36,13 @@ impl ContainerSecretStore {
         let ctx_bytes = context.as_bytes();
         let copy_len = ctx_bytes.len().min(32);
         material[32..32 + copy_len].copy_from_slice(&ctx_bytes[..copy_len]);
-        let hash = blake3_hash(&material);
-        Key::from(*hash.as_bytes())
+        let hash = hash(&material);
+        Key::from_bytes(*hash.as_bytes())
     }
 
     /// Seal a secret (name + value → encrypted)
     pub fn seal_secret(&mut self, name: &str, value: &[u8]) -> Result<SealedSecret, String> {
-        let name_hash = blake3_hash(name.as_bytes());
+        let name_hash = hash(name.as_bytes());
         let ciphertext = seal(&self.key, value).map_err(|e| format!("Seal error: {:?}", e))?;
         let secret = SealedSecret {
             name_hash,
@@ -59,7 +59,7 @@ impl ContainerSecretStore {
 
     /// Find and open a secret by name
     pub fn get_secret(&self, name: &str) -> Result<Vec<u8>, String> {
-        let name_hash = blake3_hash(name.as_bytes());
+        let name_hash = hash(name.as_bytes());
         for sealed in &self.sealed_secrets {
             if sealed.name_hash == name_hash {
                 return self.open_secret(sealed);
@@ -74,7 +74,7 @@ mod tests {
     use super::*;
 
     fn test_key() -> Key {
-        Key::from([0x42u8; 32])
+        Key::from_bytes([0x42u8; 32])
     }
 
     #[test]
@@ -106,7 +106,7 @@ mod tests {
     fn test_wrong_key_fails() {
         let mut store = ContainerSecretStore::new(test_key());
         let secret = store.seal_secret("SECRET", b"value").unwrap();
-        let wrong_store = ContainerSecretStore::new(Key::from([0xFFu8; 32]));
+        let wrong_store = ContainerSecretStore::new(Key::from_bytes([0xFFu8; 32]));
         assert!(wrong_store.open_secret(&secret).is_err());
     }
 }

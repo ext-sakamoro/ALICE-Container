@@ -11,6 +11,8 @@ use alice_db::AliceDB;
 pub enum DbBridgeError {
     /// Record buffer has incorrect length (expected 40 bytes)
     InvalidBufferLength { expected: usize, got: usize },
+    /// The underlying DB read or write failed
+    Io(std::io::ErrorKind),
 }
 
 impl core::fmt::Display for DbBridgeError {
@@ -23,6 +25,7 @@ impl core::fmt::Display for DbBridgeError {
                     expected, got
                 )
             }
+            DbBridgeError::Io(kind) => write!(f, "db error: {kind}"),
         }
     }
 }
@@ -115,7 +118,9 @@ impl ContainerDbSink {
     pub fn store_record(&mut self, record: &ContainerRecord) -> Result<(), DbBridgeError> {
         let key = Self::make_key(record.container_id, record.timestamp_ms);
         let value = record.to_bytes();
-        self.db.put(&key, &value);
+        self.db
+            .put_blob(&key, &value)
+            .map_err(|e| DbBridgeError::Io(e.kind()))?;
         self.records_stored += 1;
         Ok(())
     }
@@ -132,19 +137,26 @@ impl ContainerDbSink {
 
     /// Query records for a container in a time range.
     ///
-    /// Silently skips any DB entries that do not deserialize correctly (e.g., corrupt data).
+    /// Skips any DB entries that do not deserialize correctly (e.g., corrupt data).
+    ///
+    /// Returns `Err` if the underlying DB read fails.
     pub fn query_container(
         &self,
         container_id: u64,
         from_ms: u64,
         to_ms: u64,
-    ) -> Vec<ContainerRecord> {
+    ) -> Result<Vec<ContainerRecord>, DbBridgeError> {
         let start = Self::make_key(container_id, from_ms);
         let end = Self::make_key(container_id, to_ms);
-        self.db
-            .range(&start, &end)
-            .filter_map(|(_k, v)| ContainerRecord::try_from_slice(v).ok())
-            .collect()
+        let rows = self
+            .db
+            .scan_blob_prefix(&container_id.to_be_bytes())
+            .map_err(|e| DbBridgeError::Io(e.kind()))?;
+        Ok(rows
+            .into_iter()
+            .filter(|(k, _)| k.as_slice() >= start.as_slice() && k.as_slice() <= end.as_slice())
+            .filter_map(|(_k, v)| ContainerRecord::try_from_slice(&v).ok())
+            .collect())
     }
 
     fn make_key(container_id: u64, timestamp_ms: u64) -> [u8; 16] {
@@ -183,6 +195,46 @@ mod tests {
 
         let long = [0u8; 50];
         assert!(ContainerRecord::try_from_slice(&long).is_err());
+    }
+
+    fn record(container_id: u64, timestamp_ms: u64) -> ContainerRecord {
+        ContainerRecord {
+            container_id,
+            timestamp_ms,
+            cpu_percent: 1.0,
+            memory_bytes: 2,
+            io_read_bytes: 3,
+            io_write_bytes: 4,
+        }
+    }
+
+    #[test]
+    fn test_store_and_query_a_time_range() {
+        let db = AliceDB::in_memory(alice_db::StorageConfig::default()).expect("in-memory db");
+        let mut sink = ContainerDbSink::new(db);
+        sink.store_batch(&[
+            record(7, 100),
+            record(7, 200),
+            record(7, 300),
+            record(8, 150),
+            record(7, 400),
+        ])
+        .expect("store");
+        assert_eq!(sink.records_stored, 5);
+        let got: Vec<u64> = sink
+            .query_container(7, 150, 300)
+            .expect("query")
+            .iter()
+            .map(|r| r.timestamp_ms)
+            .collect();
+        assert_eq!(got, vec![200, 300]); // bounds inclusive, other containers and times left out
+        let other = sink.query_container(8, 0, 1000).expect("query");
+        assert_eq!(other.len(), 1);
+        assert_eq!(other[0].container_id, 8);
+        assert!(sink
+            .query_container(9, 0, u64::MAX)
+            .expect("query")
+            .is_empty());
     }
 
     #[test]

@@ -61,3 +61,7 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
+
+# one alice-det-math in the build: alice-db and alice-zip ask crates.io for 0.5.1, alice-analytics uses this rev
+[patch.crates-io]
+alice-det-math = { git = "https://github.com/ext-sakamoro/ALICE-DetMath", rev = "6384856c8b00f1615e1cd6b5c74d88036c1a8706", version = "0.5.2" }
