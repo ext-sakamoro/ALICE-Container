@@ -6,7 +6,8 @@ All notable changes to ALICE-Container will be documented in this file.
 
 ### Changed
 - `IoUringCgroup::submit_and_wait` は file を開くだけで内容を書いていなかった 全 file の open → write → close を 3 回の `io_uring_enter` で行い、open / write / close の失敗と短い write を `OperationFailed` で返す (失敗時も開いた file は閉じる) `CgroupController::set_all_batched` は io_uring が使える時この経路で書く (従来は同期の書き込み) io_uring の ring が作れない時だけ個別の書き込みに戻る 非 Linux の stub に `queue_write` / `submit_and_wait` を足した
-- Linux でだけ compile される code の clippy の指摘 (未使用の import、`match` を `if let` に、fd を開いたまま持つだけの field) を直した CI の test の最小の件数を 243 に (Linux の io_uring の試験 4 件を足した)
+- Linux でだけ compile される code の clippy の指摘 (未使用の import、`match` を `if let` に、fd を開いたまま持つだけの field) を直した CI の test の最小の件数を 244 に (Linux の io_uring の試験 4 件と SQE の並びの試験 1 件を足した)
+- `IoUringSqe::openat` が open flags を `len`、mode を `off` に入れていた kernel は mode を `len`、flags を `open_flags` から読むので、`O_WRONLY | O_TRUNC` が `O_RDONLY` として開かれていた liburing の `io_uring_prep_openat` と同じ並びにした
 
 - `alice-sign` の git rev を 8a1b00d に上げた (HMAC-SHA256 の追加のみ、使っている API と byte 列は同じ)
 - Licence: `AGPL-3.0` → `LicenseRef-Proprietary`

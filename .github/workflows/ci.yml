@@ -36,7 +36,7 @@ jobs:
     env:
       # the passed-test count of the feature set below at the commit that set it;
       # fewer passed tests (a removed or skipped test, or none at all) is a failure
-      MIN_PASSED: "243"
+      MIN_PASSED: "244"
     steps:
       # cargo reads the manifest of every path dependency, optional ones included, so
       # each sibling is checked out next to this repository at the commit pinned in

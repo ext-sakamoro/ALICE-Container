@@ -209,16 +209,19 @@ impl IoUringSqe {
     }
 
     /// Create an openat SQE
+    ///
+    /// The kernel reads the mode from `len` and the open flags from the `open_flags` word (`op_flags` here), as
+    /// liburing's `io_uring_prep_openat` lays them out; `off` is unused.
     pub fn openat(dirfd: RawFd, path: *const u8, flags: i32, mode: u32, user_data: u64) -> Self {
         Self {
             opcode: IoUringOp::Openat as u8,
             flags: 0,
             ioprio: 0,
             fd: dirfd,
-            off: mode as u64,
+            off: 0,
             addr: path as u64,
-            len: flags as u32,
-            op_flags: 0,
+            len: mode,
+            op_flags: flags as u32,
             user_data,
             buf_index: 0,
             personality: 0,
@@ -949,6 +952,20 @@ mod tests {
         assert_eq!(sqe.fd, 5);
         assert_eq!(sqe.len, 4);
         assert_eq!(sqe.user_data, 42);
+    }
+
+    // oracle: liburing io_uring_prep_openat — fd = dirfd, addr = path, len = mode, open_flags = flags, off = 0
+    #[test]
+    fn test_sqe_openat_layout() {
+        let path = b"/x\0";
+        let sqe = IoUringSqe::openat(-100, path.as_ptr(), 0o1 | 0o1000, 0o644, 7);
+        assert_eq!(sqe.opcode, IoUringOp::Openat as u8);
+        assert_eq!(sqe.fd, -100);
+        assert_eq!(sqe.addr, path.as_ptr() as u64);
+        assert_eq!(sqe.len, 0o644);
+        assert_eq!(sqe.op_flags, 0o1001);
+        assert_eq!(sqe.off, 0);
+        assert_eq!(sqe.user_data, 7);
     }
 
     #[test]
