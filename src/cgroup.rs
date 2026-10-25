@@ -407,13 +407,13 @@ impl CgroupController {
 
     /// Set all resource limits in a single batched operation (io_uring)
     ///
-    /// Uses io_uring for async batch writes when available.
-    /// Falls back to synchronous writes if io_uring is not available.
+    /// Uses io_uring for the batch when a ring can be created; a write that fails there is an error, not a
+    /// fallback. Falls back to individual writes only when io_uring is not available.
     ///
     /// # Performance
     ///
-    /// - With io_uring: 1 syscall for all operations
-    /// - Without: 3+ separate write syscalls
+    /// - With io_uring: 3 `io_uring_enter` calls (open all, write all, close all)
+    /// - Without: an open, a write and a close per file
     ///
     /// # Errors
     ///
@@ -436,9 +436,9 @@ impl CgroupController {
                     batch.queue_io_max(&io_config.device, io_config.rbps, io_config.wbps);
                 }
 
-                // Use sync batch write (simpler, still batched)
                 batch
-                    .sync_batch_write()
+                    .submit_and_wait()
+                    .map(|_| ())
                     .map_err(|e| CgroupError::IoError(e.to_string()))
             }
             Err(_) => {
@@ -696,6 +696,54 @@ impl Drop for CgroupController {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // oracle: through the production entry, the cgroup files hold exactly the values the configs render
+    // (a directory of plain files stands in for the cgroup; io_uring must be available on the Linux host)
+    #[cfg(all(feature = "io_uring", target_os = "linux"))]
+    #[test]
+    fn test_set_all_batched_writes_through_io_uring() {
+        let dir =
+            std::env::temp_dir().join(format!("alice-container-batched-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        for f in ["cpu.max", "memory.max", "io.max"] {
+            fs::write(
+                dir.join(f),
+                "stale content that is longer than any value written",
+            )
+            .unwrap();
+        }
+        let cg = CgroupController {
+            path: dir.clone(),
+            container_id: "t".to_string(),
+        };
+        let cpu = CpuConfig {
+            quota_us: 50_000,
+            ..CpuConfig::default()
+        };
+        let memory = MemoryConfig {
+            max: 1 << 20,
+            ..MemoryConfig::default()
+        };
+        let io = IoConfig {
+            rbps: 4096,
+            ..IoConfig::new("8:0")
+        };
+        cg.set_all_batched(&cpu, &memory, Some(&io)).unwrap();
+        assert_eq!(
+            fs::read_to_string(dir.join("cpu.max")).unwrap(),
+            "50000 100000"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("memory.max")).unwrap(),
+            "1048576"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("io.max")).unwrap(),
+            "8:0 rbps=4096"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn test_cpu_config_default() {

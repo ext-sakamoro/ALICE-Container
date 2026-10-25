@@ -26,9 +26,6 @@
 //! └── .old_root/     (for pivot_root)
 //! ```
 
-#[cfg(target_os = "linux")]
-use core::ffi::c_int;
-
 #[cfg(feature = "std")]
 use std::{
     fs::{self, File},

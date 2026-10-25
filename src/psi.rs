@@ -299,8 +299,8 @@ pub enum PsiEvent {
 struct RegisteredTrigger {
     /// Original trigger configuration
     trigger: PsiTrigger,
-    /// File handle (kept open for notifications)
-    file: File,
+    /// File handle: owned so the trigger fd stays open for notifications (never read)
+    _file: File,
     /// File descriptor
     fd: RawFd,
 }
@@ -392,7 +392,11 @@ impl PsiMonitor {
             return Err(PsiError::EpollError(errno));
         }
 
-        self.triggers.push(RegisteredTrigger { trigger, file, fd });
+        self.triggers.push(RegisteredTrigger {
+            trigger,
+            _file: file,
+            fd,
+        });
 
         Ok(())
     }
@@ -577,13 +581,8 @@ impl PsiScheduler {
     pub fn tick(&mut self) -> Result<Option<PsiEvent>, PsiError> {
         let event = self.monitor.wait_event(Duration::from_millis(0))?;
 
-        if let Some(ref e) = event {
-            match e {
-                PsiEvent::CpuPressure { level, .. } => {
-                    self.handle_cpu_pressure(*level)?;
-                }
-                _ => {}
-            }
+        if let Some(PsiEvent::CpuPressure { level, .. }) = &event {
+            self.handle_cpu_pressure(*level)?;
         }
 
         Ok(event)
@@ -593,13 +592,8 @@ impl PsiScheduler {
     pub fn wait(&mut self, timeout: Duration) -> Result<Option<PsiEvent>, PsiError> {
         let event = self.monitor.wait_event(timeout)?;
 
-        if let Some(ref e) = event {
-            match e {
-                PsiEvent::CpuPressure { level, .. } => {
-                    self.handle_cpu_pressure(*level)?;
-                }
-                _ => {}
-            }
+        if let Some(PsiEvent::CpuPressure { level, .. }) = &event {
+            self.handle_cpu_pressure(*level)?;
         }
 
         Ok(event)

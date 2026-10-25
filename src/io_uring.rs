@@ -7,8 +7,7 @@
 //!
 //! | Operation | Traditional | io_uring Batch |
 //! |-----------|-------------|----------------|
-//! | Set cpu+mem+io | 3 syscalls | 1 syscall |
-//! | Latency | ~30μs | ~10μs |
+//! | Set N cgroup files | 3·N syscalls (open, write, close) | 3 `io_uring_enter` calls |
 //!
 //! ## Usage
 //!
@@ -735,63 +734,138 @@ impl IoUringCgroup {
     }
 
     /// Submit all queued operations and wait for completion
+    ///
+    /// Three `io_uring_enter` calls cover every queued file, whatever their number: one opens all files
+    /// (`O_WRONLY | O_TRUNC`; the file must exist, as a cgroup file does), one writes each file's content at
+    /// offset 0, one closes them. Returns the write completions in queue order, each carrying the queued
+    /// operation's `user_data` and the byte count written.
+    ///
+    /// # Errors
+    ///
+    /// `InvalidParameter` for a path or content with a NUL byte, `RingFull` when more files are queued than the
+    /// ring holds, `SubmitFailed` when the kernel refuses the submission, and `OperationFailed` (with the queued
+    /// operation's `user_data`) when an open, a write or a close fails or a write is short (`EIO`). Files opened
+    /// before a failure are closed; the queue is cleared either way.
     pub fn submit_and_wait(&mut self) -> Result<Vec<IoUringCqe>, IoUringError> {
+        let ops = core::mem::take(&mut self.pending_ops);
+        self.buffers.clear();
+        let mut fds: Vec<RawFd> = Vec::new();
+        let result = self.run_batch(&ops, &mut fds);
+        let closed = if fds.is_empty() {
+            Ok(())
+        } else {
+            self.close_all(&ops, &fds)
+        };
+        self.buffers.clear();
+        let written = result?;
+        closed?;
+        Ok(written)
+    }
+
+    fn run_batch(
+        &mut self,
+        ops: &[CgroupOp],
+        fds: &mut Vec<RawFd>,
+    ) -> Result<Vec<IoUringCqe>, IoUringError> {
         use std::ffi::CString;
         use std::os::unix::ffi::OsStrExt;
 
-        if self.pending_ops.is_empty() {
+        if ops.is_empty() {
             return Ok(Vec::new());
         }
-
-        self.buffers.clear();
-        let ops_count = self.pending_ops.len();
-
-        // For each operation, we need: openat -> write -> close
-        // Total SQEs = ops_count * 3
-        for op in &self.pending_ops {
-            let file_path = self.cgroup_path.join(&op.file);
-            let path_cstr = CString::new(file_path.as_os_str().as_bytes())
+        if ops.len() > self.ring.entries as usize {
+            return Err(IoUringError::RingFull);
+        }
+        for op in ops {
+            let path = CString::new(self.cgroup_path.join(&op.file).as_os_str().as_bytes())
                 .map_err(|_| IoUringError::InvalidParameter("Invalid path".into()))?;
-            let content_cstr = CString::new(op.content.as_bytes())
-                .map_err(|_| IoUringError::InvalidParameter("Invalid content".into()))?;
+            if op.content.as_bytes().contains(&0) {
+                return Err(IoUringError::InvalidParameter("Invalid content".into()));
+            }
+            self.buffers.push(path);
+        }
 
-            // Store CStrings to keep them alive
-            let path_ptr = path_cstr.as_ptr() as *const u8;
-            let content_ptr = content_cstr.as_ptr() as *const u8;
-            let content_len = op.content.len() as u32;
-
-            self.buffers.push(path_cstr);
-            self.buffers.push(content_cstr);
-
-            // We'll use a simpler approach: open file with O_WRONLY|O_TRUNC
-            // For cgroup files, we need synchronous approach or linked SQEs
-
-            // Open file
-            let open_sqe = IoUringSqe::openat(
+        // open every file; the paths in self.buffers stay alive until the completions are read
+        for i in 0..ops.len() {
+            let path_ptr = self.buffers[i].as_ptr() as *const u8;
+            let sqe = IoUringSqe::openat(
                 libc::AT_FDCWD,
                 path_ptr,
                 libc::O_WRONLY | libc::O_TRUNC,
                 0,
-                op.user_data | 0x1000_0000, // Mark as open
-            )
-            .with_link();
-
-            self.ring.queue_sqe(open_sqe)?;
-
-            // We can't easily chain write to unknown fd in io_uring without IOSQE_IO_HARDLINK
-            // For simplicity, let's use a sync fallback for now
+                i as u64,
+            );
+            self.ring.queue_sqe(sqe)?;
+        }
+        let opened = self.complete(ops.len())?;
+        let mut fd_of = vec![-1; ops.len()];
+        let mut failed = None;
+        for cqe in &opened {
+            let i = cqe.user_data as usize;
+            if cqe.res < 0 {
+                failed.get_or_insert(IoUringError::OperationFailed {
+                    user_data: ops[i].user_data,
+                    errno: -cqe.res,
+                });
+            } else {
+                fd_of[i] = cqe.res;
+            }
+        }
+        fds.extend(fd_of.iter().copied().filter(|fd| *fd >= 0));
+        if let Some(e) = failed {
+            return Err(e);
         }
 
-        // Submit
-        let submitted = self.ring.submit_and_wait(ops_count as u32)?;
+        // write each file's content at offset 0; op.content outlives the completions
+        for (i, op) in ops.iter().enumerate() {
+            let bytes = op.content.as_bytes();
+            let sqe = IoUringSqe::write(fd_of[i], bytes.as_ptr(), bytes.len() as u32, 0, i as u64);
+            self.ring.queue_sqe(sqe)?;
+        }
+        let mut written = self.complete(ops.len())?;
+        written.sort_by_key(|c| c.user_data);
+        for cqe in &mut written {
+            let op = &ops[cqe.user_data as usize];
+            if cqe.res < 0 {
+                return Err(IoUringError::OperationFailed {
+                    user_data: op.user_data,
+                    errno: -cqe.res,
+                });
+            }
+            if cqe.res as usize != op.content.len() {
+                return Err(IoUringError::OperationFailed {
+                    user_data: op.user_data,
+                    errno: libc::EIO,
+                });
+            }
+            cqe.user_data = op.user_data;
+        }
+        Ok(written)
+    }
 
-        // Get completions
-        let completions = self.ring.get_completions();
+    /// Close every opened fd in one submission; the first failure is returned after all are closed
+    fn close_all(&mut self, ops: &[CgroupOp], fds: &[RawFd]) -> Result<(), IoUringError> {
+        for (i, fd) in fds.iter().enumerate() {
+            self.ring.queue_sqe(IoUringSqe::close(*fd, i as u64))?;
+        }
+        let closed = self.complete(fds.len())?;
+        match closed.iter().find(|c| c.res < 0) {
+            Some(c) => Err(IoUringError::OperationFailed {
+                user_data: ops.get(c.user_data as usize).map_or(0, |o| o.user_data),
+                errno: -c.res,
+            }),
+            None => Ok(()),
+        }
+    }
 
-        // Clear pending
-        self.pending_ops.clear();
-
-        Ok(completions)
+    /// Submit the queued SQEs and collect exactly `n` completions
+    fn complete(&mut self, n: usize) -> Result<Vec<IoUringCqe>, IoUringError> {
+        let mut out = Vec::with_capacity(n);
+        while out.len() < n {
+            self.ring.submit_and_wait((n - out.len()) as u32)?;
+            out.extend(self.ring.get_completions());
+        }
+        Ok(out)
     }
 
     /// Simpler synchronous batch write (fallback)
@@ -850,6 +924,10 @@ impl IoUringCgroup {
     pub fn queue_cpu_max(&mut self, _quota_us: u64, _period_us: u64) {}
     pub fn queue_memory_max(&mut self, _bytes: u64) {}
     pub fn queue_io_max(&mut self, _device: &str, _rbps: u64, _wbps: u64) {}
+    pub fn queue_write(&mut self, _file: &str, _content: String) {}
+    pub fn submit_and_wait(&mut self) -> Result<Vec<IoUringCqe>, IoUringError> {
+        Err(IoUringError::NotSupported)
+    }
     pub fn sync_batch_write(&mut self) -> Result<(), IoUringError> {
         Err(IoUringError::NotSupported)
     }
@@ -889,6 +967,100 @@ mod tests {
 
         let err = IoUringError::RingFull;
         assert!(err.to_string().contains("full"));
+    }
+
+    /// A directory of files standing in for a cgroup: each holds longer stale content, so a write that does not
+    /// truncate, does not write, or writes to the wrong file is visible in the bytes read back.
+    #[cfg(target_os = "linux")]
+    fn fake_cgroup(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "alice-container-iouring-{name}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for f in ["cpu.max", "memory.max", "io.max"] {
+            std::fs::write(
+                dir.join(f),
+                "stale content that is longer than any value written",
+            )
+            .unwrap();
+        }
+        dir
+    }
+
+    // oracle: the bytes each file holds afterwards are exactly the queued content (no io_uring setup skip:
+    // a ring that cannot be created fails the test)
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_batch_write_lands_the_bytes() {
+        let dir = fake_cgroup("ok");
+        let mut batch = IoUringCgroup::new(&dir).expect("io_uring setup");
+        batch.queue_cpu_max(50_000, 100_000);
+        batch.queue_memory_max(256 * 1024 * 1024);
+        batch.queue_io_max("8:0", 1_000, u64::MAX);
+        let done = batch.submit_and_wait().expect("batch write");
+        assert_eq!(
+            done.iter().map(|c| c.user_data).collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
+        assert_eq!(
+            done.iter().map(|c| c.res).collect::<Vec<_>>(),
+            vec![12, 9, 13]
+        );
+        let read = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap();
+        assert_eq!(read("cpu.max"), "50000 100000");
+        assert_eq!(read("memory.max"), "268435456");
+        assert_eq!(read("io.max"), "8:0 rbps=1000");
+        // the queue is consumed: a second submit writes nothing
+        assert!(batch.submit_and_wait().unwrap().is_empty());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    // a missing file is an OperationFailed with ENOENT and the queued op's user_data; the files that did open are
+    // closed and keep their old bytes (nothing was written)
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_batch_write_reports_a_missing_file() {
+        let dir = fake_cgroup("missing");
+        let mut batch = IoUringCgroup::new(&dir).expect("io_uring setup");
+        batch.queue_cpu_max(1, 2);
+        batch.queue_write("no.such.file", "x".to_string());
+        let err = batch.submit_and_wait().unwrap_err();
+        assert_eq!(
+            err,
+            IoUringError::OperationFailed {
+                user_data: 2,
+                errno: libc::ENOENT
+            }
+        );
+        // O_TRUNC ran on the file that opened, but its write was never issued
+        assert_eq!(std::fs::read_to_string(dir.join("cpu.max")).unwrap(), "");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    // degenerate inputs: an empty queue, a NUL in the content, more files than the ring holds
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_batch_write_degenerate_inputs() {
+        let dir = fake_cgroup("degenerate");
+        let mut batch = IoUringCgroup::new(&dir).expect("io_uring setup");
+        assert!(batch.submit_and_wait().unwrap().is_empty());
+        batch.queue_write("cpu.max", "a\0b".to_string());
+        assert!(matches!(
+            batch.submit_and_wait(),
+            Err(IoUringError::InvalidParameter(_))
+        ));
+        for _ in 0..33 {
+            batch.queue_write("cpu.max", "1".to_string());
+        }
+        assert_eq!(batch.submit_and_wait().unwrap_err(), IoUringError::RingFull);
+        // nothing was opened by the refused batches
+        assert_eq!(
+            std::fs::read_to_string(dir.join("cpu.max")).unwrap(),
+            "stale content that is longer than any value written"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

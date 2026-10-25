@@ -394,7 +394,7 @@ impl Container {
     /// new process directly into the cgroup during clone.
     #[cfg(all(feature = "clone3", target_os = "linux"))]
     fn spawn_init_clone3(&self) -> Result<u32, ContainerError> {
-        use crate::clone3::{clone3_raw, clone_flags, close_cgroup_fd, open_cgroup_fd, Clone3Args};
+        use crate::clone3::{clone3_raw, close_cgroup_fd, open_cgroup_fd, Clone3Args};
 
         // Open cgroup directory fd
         let cgroup_fd = open_cgroup_fd(self.cgroup.path())
