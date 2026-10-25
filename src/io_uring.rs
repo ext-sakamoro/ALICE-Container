@@ -752,7 +752,7 @@ impl IoUringCgroup {
     pub fn submit_and_wait(&mut self) -> Result<Vec<IoUringCqe>, IoUringError> {
         let ops = core::mem::take(&mut self.pending_ops);
         self.buffers.clear();
-        let mut fds: Vec<RawFd> = Vec::new();
+        let mut fds: Vec<(usize, RawFd)> = Vec::new();
         let result = self.run_batch(&ops, &mut fds);
         let closed = if fds.is_empty() {
             Ok(())
@@ -768,7 +768,7 @@ impl IoUringCgroup {
     fn run_batch(
         &mut self,
         ops: &[CgroupOp],
-        fds: &mut Vec<RawFd>,
+        fds: &mut Vec<(usize, RawFd)>,
     ) -> Result<Vec<IoUringCqe>, IoUringError> {
         use std::ffi::CString;
         use std::os::unix::ffi::OsStrExt;
@@ -814,7 +814,7 @@ impl IoUringCgroup {
                 fd_of[i] = cqe.res;
             }
         }
-        fds.extend(fd_of.iter().copied().filter(|fd| *fd >= 0));
+        fds.extend(fd_of.iter().copied().enumerate().filter(|(_, fd)| *fd >= 0));
         if let Some(e) = failed {
             return Err(e);
         }
@@ -846,10 +846,11 @@ impl IoUringCgroup {
         Ok(written)
     }
 
-    /// Close every opened fd in one submission; the first failure is returned after all are closed
-    fn close_all(&mut self, ops: &[CgroupOp], fds: &[RawFd]) -> Result<(), IoUringError> {
-        for (i, fd) in fds.iter().enumerate() {
-            self.ring.queue_sqe(IoUringSqe::close(*fd, i as u64))?;
+    /// Close every opened fd (each with the index of its queued op) in one submission; the first failure is
+    /// returned after all are closed
+    fn close_all(&mut self, ops: &[CgroupOp], fds: &[(usize, RawFd)]) -> Result<(), IoUringError> {
+        for (i, fd) in fds {
+            self.ring.queue_sqe(IoUringSqe::close(*fd, *i as u64))?;
         }
         let closed = self.complete(fds.len())?;
         match closed.iter().find(|c| c.res < 0) {
