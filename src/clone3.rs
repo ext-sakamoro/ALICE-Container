@@ -280,6 +280,10 @@ pub unsafe fn clone3_raw(args: &Clone3Args) -> Result<u32, Clone3Error> {
 }
 
 /// Clone3 (non-Linux stub)
+///
+/// # Safety
+///
+/// Same contract as the Linux version; this stub only returns `Clone3Error::NotSupported`.
 #[cfg(not(target_os = "linux"))]
 pub unsafe fn clone3_raw(_args: &Clone3Args) -> Result<u32, Clone3Error> {
     Err(Clone3Error::NotSupported)
@@ -371,6 +375,10 @@ where
 }
 
 /// Clone3 with function (non-Linux stub)
+///
+/// # Safety
+///
+/// Same contract as the Linux version; this stub only returns `Clone3Error::NotSupported`.
 #[cfg(not(target_os = "linux"))]
 pub unsafe fn clone3_with_fn<F>(
     _args: &Clone3Args,
@@ -577,8 +585,8 @@ mod tests {
 
     #[test]
     fn test_clone_flags_constants() {
-        assert!(clone_flags::CLONE_INTO_CGROUP > 0);
-        assert!(clone_flags::CONTAINER > 0);
+        const { assert!(clone_flags::CLONE_INTO_CGROUP > 0) };
+        const { assert!(clone_flags::CONTAINER > 0) };
         assert_eq!(
             clone_flags::CONTAINER,
             clone_flags::CLONE_NEWNS

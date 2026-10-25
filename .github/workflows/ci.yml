@@ -67,3 +67,21 @@ jobs:
             echo "::error::${passed} tests passed, fewer than ${MIN_PASSED}"
             exit 1
           fi
+
+  clippy:
+    name: Clippy (all features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: ALICE-Container
+      - name: Check out the pinned ALICE-* siblings
+        uses: ./ALICE-Container/.github/actions/alice-siblings
+        with:
+          repo-dir: ALICE-Container
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Clippy (all features, all targets)
+        working-directory: ALICE-Container
+        run: cargo clippy --all-features --all-targets -- -D warnings

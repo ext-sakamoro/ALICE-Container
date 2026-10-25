@@ -6,7 +6,7 @@
 # Run `--quick` before every push.
 #
 # usage: scripts/preflight.sh [--quick]   (--quick skips the test / bench suites)
-# generator rev 7b9601a9abf759ed04c7dc9bf2ebd404323370c7
+# generator rev ba5ce5ffe222b20ef2056d598c76fe6342cef927
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # --- heavy slot (begin) ---
@@ -251,6 +251,7 @@ has_toolchain() { grep -q "^$1" <<<"$(rustup toolchain list)"; }
 
 # Steps CI runs that this file cannot reproduce locally (they can only fail remotely):
 #   - ci.yml:test: uses ./ALICE-Container/.github/actions/alice-siblings (an action this file cannot run)
+#   - ci.yml:clippy: uses ./ALICE-Container/.github/actions/alice-siblings (an action this file cannot run)
 #   - security-audit.yml:changes:run (needs network / runner-only)
 #   - security-audit.yml:audit: uses ./.github/actions/alice-siblings (an action this file cannot run)
 #   - security-audit.yml:audit:Install cargo-audit (needs network / runner-only)
@@ -266,6 +267,10 @@ step "ci.yml / fmt: Check formatting"
 
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
+
+step "ci.yml / clippy: Clippy (all features, all targets)"
+relint
+( export CARGO_TERM_COLOR="always"; cargo clippy --all-features --all-targets -- -D warnings )
 
 step "security-audit.yml / audit: Resolve"
 (
