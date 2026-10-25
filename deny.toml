@@ -62,4 +62,7 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # alice-sign comes from alice-crypto as a git dependency pinned to one commit
-allow-git = ["https://github.com/ext-sakamoro/ALICE-Sign"]
+allow-git = [
+    "https://github.com/ext-sakamoro/ALICE-Sign",
+    "https://github.com/ext-sakamoro/ALICE-DetMath",
+]
