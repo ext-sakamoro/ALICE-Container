@@ -7,7 +7,7 @@ All notable changes to ALICE-Container will be documented in this file.
 ### Changed
 
 - `alice-sign` の git rev を 8a1b00d に上げた (HMAC-SHA256 の追加のみ、使っている API と byte 列は同じ)
-- Licence: `AGPL-3.0 OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
+- Licence: `AGPL-3.0` → `LicenseRef-Proprietary`
 - CI: `Test (public siblings)` job は sibling を workflow に書いた commit でなく `.github/alice-siblings` の固定 (security-audit と同じ) で checkout する 固定は各 sibling の現在の main (Analytics 79b5b4a / Crypto 31d525a / DB b3b8bd0 / Zip bf4cefa) に進め、`cargo test --features ffi,full,sync` は 239 passed で `MIN_PASSED` と同じ
 
 ### Security
