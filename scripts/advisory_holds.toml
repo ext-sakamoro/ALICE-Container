@@ -22,18 +22,6 @@
 
 # Each hold ends on 2026-11-14; a renewal needs a new date and the reason it is still open.
 
-# rkyv 0.7 (RUSTSEC-2026-0235, fixed in 0.8.17, a major upgrade) comes from alice-db; the
-# hold ends when alice-db moves to rkyv 0.8.
-[[hold]]
-id = "RUSTSEC-2026-0235"
-kind = "vulnerability"
-crate = "rkyv"
-version = "0.7.46"
-dependents = ["alice-db 0.6.0"]
-fixed = [">=0.8.17"]
-expires = "2026-11-14"
-until = "alice-db moves to rkyv 0.8"
-
 # bincode is unmaintained (no safe version). It comes from alice-db; the hold ends when
 # alice-db moves to an ALICE codec.
 [[hold]]

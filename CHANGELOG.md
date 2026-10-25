@@ -14,7 +14,7 @@ All notable changes to ALICE-Container will be documented in this file.
 
 ### Security
 - CI: `security-audit.yml` を追加 `.github/alice-siblings` に固定した実物の sibling (Analytics / Crypto / DB / Zip) と毎回新しい解決で `cargo audit` と `cargo deny --all-features check all` を走らせ、解決と deny の graph がこの crate と path の sibling を全て含むこと (0 件は失敗) を検査する 週次は日曜 02:29 UTC
-- 解消に依存の更新が要る勧告は `scripts/advisory_holds.toml` の期限付きの保留 (2026-11-14 まで) とし、`scripts/advisory_hold_guard.py` が版と依存元の一致と期限を検査する: rkyv 0.7.46 (RUSTSEC-2026-0235) と bincode 1.3.3 (unmaintained)、どちらも alice-db 経由 それ以外の勧告は保留せず失敗する
+- 解消に依存の更新が要る勧告は `scripts/advisory_holds.toml` の期限付きの保留 (2026-11-14 まで) とし、`scripts/advisory_hold_guard.py` が版と依存元の一致と期限を検査する: bincode 1.3.3 (unmaintained、alice-db 経由) それ以外の勧告は保留せず失敗する
 - `deny.toml`: sibling の alice-crypto / alice-db を crate 単位の exception で許可、alice-crypto が固定 commit で取る ALICE-Sign の git source を許可
 
 ### Added
