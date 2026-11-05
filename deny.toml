@@ -12,6 +12,7 @@ all-features = true
 feature-depth = 1
 
 [advisories]
+unused-ignored-advisory = "deny"
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 version = 2
