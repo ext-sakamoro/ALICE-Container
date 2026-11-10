@@ -38,16 +38,11 @@ jobs:
       # fewer passed tests (a removed or skipped test, or none at all) is a failure
       MIN_PASSED: "244"
     steps:
-      # cargo reads the manifest of every path dependency, optional ones included, so
-      # each sibling is checked out next to this repository at the commit pinned in
-      # .github/alice-siblings (the same pins the security-audit workflow resolves against)
+      # the ALICE-* dependencies are git (branch main), so cargo fetches them; nothing is
+      # checked out next to this repository
       - uses: actions/checkout@v5
         with:
           path: ALICE-Container
-      - name: Check out the pinned ALICE-* siblings
-        uses: ./ALICE-Container/.github/actions/alice-siblings
-        with:
-          repo-dir: ALICE-Container
       - uses: dtolnay/rust-toolchain@stable
       - name: Test (lib, integration, doctests)
         working-directory: ALICE-Container
@@ -75,10 +70,6 @@ jobs:
       - uses: actions/checkout@v5
         with:
           path: ALICE-Container
-      - name: Check out the pinned ALICE-* siblings
-        uses: ./ALICE-Container/.github/actions/alice-siblings
-        with:
-          repo-dir: ALICE-Container
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
