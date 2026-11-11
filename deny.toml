@@ -17,10 +17,7 @@ db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 version = 2
 yanked = "deny"
-ignore = [
-    # dated holds (scripts/advisory_holds.toml), each until 2026-11-14
-    "RUSTSEC-2025-0141", # bincode 1.3.3 unmaintained, via alice-db
-]
+ignore = []
 
 [licenses]
 version = 2
@@ -53,6 +50,22 @@ allow = ["LicenseRef-Proprietary"]
 name = "alice-db"
 allow = ["LicenseRef-Proprietary"]
 
+[[licenses.exceptions]]
+name = "alice-analytics"
+allow = ["LicenseRef-Proprietary"]
+
+[[licenses.exceptions]]
+name = "alice-det-math"
+allow = ["LicenseRef-Proprietary"]
+
+[[licenses.exceptions]]
+name = "alice-serial"
+allow = ["LicenseRef-Proprietary"]
+
+[[licenses.exceptions]]
+name = "alice-zip"
+allow = ["LicenseRef-Proprietary"]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"   # path dependencies have no registry version
@@ -62,8 +75,13 @@ highlight = "all"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-# alice-sign comes from alice-crypto as a git dependency pinned to one commit
+# the alice-* dependencies are git (branch main, or one pinned commit for alice-sign); each repository the resolve reaches is listed
 allow-git = [
-    "https://github.com/ext-sakamoro/ALICE-Sign",
+    "https://github.com/ext-sakamoro/ALICE-Analytics",
+    "https://github.com/ext-sakamoro/ALICE-Crypto",
+    "https://github.com/ext-sakamoro/ALICE-DB",
     "https://github.com/ext-sakamoro/ALICE-DetMath",
+    "https://github.com/ext-sakamoro/ALICE-Serial",
+    "https://github.com/ext-sakamoro/ALICE-Sign",
+    "https://github.com/ext-sakamoro/ALICE-Zip",
 ]
