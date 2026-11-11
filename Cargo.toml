@@ -38,9 +38,9 @@ sync = ["std"]
 [dependencies]
 libc = "0.2"
 alice-sign = { version = "0.1", git = "https://github.com/ext-sakamoro/ALICE-Sign", rev = "8a1b00d800082187a8693732a9ffb806c98814e7" }
-alice-analytics = { path = "../ALICE-Analytics", optional = true, default-features = false, features = ["std"] }
-alice-db = { path = "../ALICE-DB", optional = true, default-features = false }
-alice-crypto = { path = "../ALICE-Crypto", optional = true, default-features = false, features = ["std"] }
+alice-analytics = { git = "https://github.com/ext-sakamoro/ALICE-Analytics", branch = "main", version = "0.7.0", optional = true, default-features = false, features = ["std"] }
+alice-db = { git = "https://github.com/ext-sakamoro/ALICE-DB", branch = "main", version = "0.6.0", optional = true, default-features = false }
+alice-crypto = { git = "https://github.com/ext-sakamoro/ALICE-Crypto", branch = "main", version = "0.7.0", optional = true, default-features = false, features = ["std"] }
 
 [dev-dependencies]
 criterion = "0.5"
@@ -61,7 +61,3 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = true
-
-# one alice-det-math in the build: alice-db and alice-zip ask crates.io for 0.5.1, alice-analytics uses this rev
-[patch.crates-io]
-alice-det-math = { git = "https://github.com/ext-sakamoro/ALICE-DetMath", rev = "6384856c8b00f1615e1cd6b5c74d88036c1a8706", version = "0.5.2" }
