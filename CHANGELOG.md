@@ -5,6 +5,7 @@ All notable changes to ALICE-Container will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- 依存: feature `db` の alice-db を 0.7 に (展開は上限付き、blob の圧縮値に長さを記録、config は non_exhaustive) この crate は config を struct literal で作らないので code の変更なし
 - CI: 共有の `advisory_hold_guard` (試験も) と `.github/actions/alice-siblings` を新しい版にした `deny.toml` は `unused-ignored-advisory = "deny"`
 - CI: `.github/actions/alice-siblings/action.yml` を共有の版 (ALICE-Analytics の main と同じ bytes) に揃える `.github/alice-siblings-private` に載せた非公開の隣を読み取り専用の鍵で clone できるようになった (この repository の隣はすべて公開なので、clone の仕方は変わらない)
 - `IoUringCgroup::submit_and_wait` は file を開くだけで内容を書いていなかった 全 file の open → write → close を 3 回の `io_uring_enter` で行い、open / write / close の失敗と短い write を `OperationFailed` で返す (失敗時も開いた file は閉じる) `CgroupController::set_all_batched` は io_uring が使える時この経路で書く (従来は同期の書き込み) io_uring の ring が作れない時だけ個別の書き込みに戻る 非 Linux の stub に `queue_write` / `submit_and_wait` を足した
